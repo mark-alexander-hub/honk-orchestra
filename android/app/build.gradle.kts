@@ -30,8 +30,8 @@ android {
         applicationId = "io.github.markalexanderhub.honkorchestra"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.4.1"
     }
 
     signingConfigs {

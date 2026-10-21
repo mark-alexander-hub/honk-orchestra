@@ -51,9 +51,9 @@ In Collect, pick what you're grabbing:
 - **Week mix:** plays the last seven days' songs back to back, with a filter sweep between days, as one
   recording.
 
-### The DJ deck
+### The Deck tab
 
-Under the pads in the Studio:
+Its own screen, nothing scrolls, so every drag is a DJ move. Your clips sit along the top as pads:
 
 - **FX pad:** drag left to close a low-pass filter (the "underwater" sweep), right to open a high-pass,
   up for echo and reverb. Let go and it snaps back clean.

@@ -85,6 +85,16 @@
   .btn[aria-pressed="true"] { background: var(--paint); color: #111; }
   .panel > .styles { flex: none; }
   .tagrow .chip { padding: 5px 10px; font-size: 13px; }
+  .deck { overflow: hidden; gap: 10px; padding-top: 10px; }
+  .padstrip { display: flex; gap: 8px; overflow-x: auto; flex: none; touch-action: pan-x; padding: 2px 0 6px; scrollbar-width: none; min-height: 20px; }
+  .padstrip::-webkit-scrollbar { display: none; }
+  .padstrip .pad { width: 84px; flex: none; font-size: 12px; }
+  .padstrip:empty::before { content: "Grab some sounds in Collect and they show up here as pads."; color: var(--dim); font-size: 13px; align-self: center; }
+  .deck .xy { flex: 1 1 auto; min-height: 120px; max-width: none; aspect-ratio: auto; width: 100%; }
+  .deck .row { flex: none; }
+  .deck .btn { padding: 12px 8px; font-size: 15px; }
+  .deck .fader input { height: 90px; }
+  .deck .fader { padding: 8px 2px 8px; gap: 6px; }
   .intro { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(10,10,12,.82); z-index: 5; }
   .card { max-width: 420px; background: var(--tar); border: 3px solid var(--paint); border-radius: 18px; padding: 22px 20px; box-shadow: 8px 8px 0 #000; transform: rotate(-.6deg); }
   .card h1 { font-family: Bungee, sans-serif; color: var(--paint); font-size: 30px; margin: 0 0 10px; line-height: 1.05; font-weight: 400; }
@@ -106,6 +116,7 @@
     <button class="tab" role="tab" data-view="live" aria-selected="true">Live</button>
     <button class="tab" role="tab" data-view="collect" aria-selected="false">Collect</button>
     <button class="tab" role="tab" data-view="studio" aria-selected="false">Studio</button>
+    <button class="tab" role="tab" data-view="deck" aria-selected="false">Deck</button>
   </div>
   <div class="stats" id="stats">Waiting for the street to start playing</div>
   <div class="toast" id="toast"></div>
@@ -172,9 +183,13 @@
   </div>
   <div class="songbar hidden" id="songBar"><i id="songFill"></i></div>
   <p class="hint" id="studioHint"></p>
-  <div class="row"><button class="btn" id="jam">Just jam (beat on)</button><button class="btn" id="weekMix">Week mix</button></div>
+  <div class="row"><button class="btn" id="weekMix">Week mix</button></div>
   <div class="pads" id="pads"></div>
-  <div class="section">DJ deck</div>
+</div>
+
+<!-- Deck: nothing here scrolls, so every drag is a DJ move -->
+<div class="panel deck hidden" id="deckView">
+  <div class="padstrip" id="deckPads"></div>
   <div class="xy" id="xy">
     <span class="lab" style="left:10px;bottom:8px">◀ Low-pass</span>
     <span class="lab" style="right:10px;bottom:8px">High-pass ▶</span>
@@ -183,8 +198,11 @@
   </div>
   <div class="row">
     <button class="btn rec hold" id="build">Hold to build</button>
-    <button class="btn" id="scratch">Scratch</button>
     <button class="btn hold" id="repeat">Hold to repeat</button>
+    <button class="btn" id="scratch">Scratch</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="jam">Just jam (beat on)</button>
     <button class="btn" id="tiltFx" aria-pressed="false">Tilt FX</button>
   </div>
   <div class="mixer" id="mixer"></div>
@@ -412,7 +430,7 @@ function toast(msg) {
 }
 const keyName = () => NOTE[((keyMidi % 12) + 12) % 12];
 function updateStats() {
-  if (view === "studio") {
+  if (view === "studio" || view === "deck") {
     $("stats").innerHTML = song ? `Playing your song · key of <b>${keyName()}</b> · ${style.name} · ${Math.round(tempo)} bpm` : `Key of <b>${keyName()}</b> · ${style.name}`;
     return;
   }
@@ -1005,13 +1023,13 @@ async function loadStudio() {
   sel.innerHTML = days.map(d => `<option value="${d}">${d === today() ? "Today" : d} · ${(n => n + (n === 1 ? " clip" : " clips"))(clips.filter(c => c.day === d).length)}</option>`).join("");
   sel.value = days.includes(cur) ? cur : today();
   studio.clips = clips.filter(c => c.day === sel.value).sort((a, b) => a.at - b.at);
-  const pads = $("pads"); pads.innerHTML = "";
+  const pads = $("pads"), strip = $("deckPads"); pads.innerHTML = ""; strip.innerHTML = "";
   if (!studio.clips.length) {
     $("studioHint").textContent = "No clips for this day yet. Grab a few sounds in Collect, or add recordings from your phone.";
     return;
   }
   $("studioHint").textContent = "Each clip is a pad: tap it to play its sound in time with the beat. ✕ leaves a clip out of the song.";
-  studio.clips.forEach((c, i) => {
+  studio.clips.forEach((c, i) => { for (const host of [pads, strip]) {
     const pad = document.createElement("button"); pad.className = "pad" + (c.muted ? " off" : "");
     pad.style.background = `hsl(${(i * 47) % 360} 85% 62%)`;
     const time = new Date(c.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -1020,8 +1038,8 @@ async function loadStudio() {
     mute.onclick = async ev => { ev.stopPropagation(); c.muted = !c.muted; await putClip(c); loadStudio(); };
     pad.append(mute);
     pad.onclick = () => { pad.classList.add("hit"); setTimeout(() => pad.classList.remove("hit"), 120); padHit(c); };
-    pads.append(pad);
-  });
+    host.append(pad);
+  } });
 }
 async function decodeClip(c) {
   if (!studio.decoded.has(c.id)) studio.decoded.set(c.id, await analyseBlob(c.blob, c.kind));
@@ -1376,11 +1394,12 @@ function show(v) {
   $("liveView").classList.toggle("hidden", v !== "live");
   $("collectView").classList.toggle("hidden", v !== "collect");
   $("studioView").classList.toggle("hidden", v !== "studio");
+  $("deckView").classList.toggle("hidden", v !== "deck");
   $("stats").classList.toggle("hidden", v === "collect");
   if (v !== "live" && listening) { listening = false; if (!song) stopBeat(); $("go").textContent = "Play"; }
-  if (v !== "studio" && running && !listening && !song) { stopBeat(); $("jam").textContent = "Just jam (beat on)"; }
+  if (v !== "studio" && v !== "deck" && running && !listening && !song) { stopBeat(); $("jam").textContent = "Just jam (beat on)"; }
   if (v === "collect") renderClips();
-  if (v === "studio") {
+  if (v === "studio" || v === "deck") {
     if (!song) { pickStyle(document.querySelector("#studioStyles [aria-pressed=true]").dataset.style, "#studioStyles"); tempo = +$("tempo").value; }
     loadStudio();
   }
