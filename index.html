@@ -105,6 +105,10 @@
   .card p { margin: 8px 0; line-height: 1.45; }
   .card .small { color: var(--dim); font-size: 13px; }
   .card .btn { width: 100%; margin-top: 14px; }
+  .card.help { max-height: 86vh; overflow-y: auto; transform: none; padding-top: 16px; }
+  .card.help h2 { font: 400 15px Bungee, sans-serif; color: var(--paint); margin: 14px 0 4px; }
+  .card.help ol { padding-left: 20px; margin: 4px 0; }
+  .card.help li { margin: 4px 0; line-height: 1.4; }
   .hidden { display: none !important; }
   .saved { position: fixed; left: 16px; right: 16px; bottom: calc(150px + env(safe-area-inset-bottom)); background: var(--ink); color: #111; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 6; box-shadow: 4px 4px 0 #000; }
   .saved input { font: 600 15px "DM Sans", sans-serif; padding: 9px 10px; border-radius: 10px; border: 2px solid #111; background: #fff; color: #111; min-width: 0; }
@@ -118,7 +122,10 @@
 <canvas id="road"></canvas>
 
 <div class="hud">
-  <div class="title">Honk Orchestra</div>
+  <div class="row" style="align-items:center">
+    <div class="title" style="flex:1">Honk Orchestra</div>
+    <button class="chip" id="helpBtn">How to use</button>
+  </div>
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-view="live" aria-selected="true">Live</button>
     <button class="tab" role="tab" data-view="collect" aria-selected="false">Collect</button>
@@ -234,6 +241,44 @@
     <p><b>Live</b> plays along right now. <b>Collect</b> grabs bits of your day, and tonight the <b>Studio</b> turns them into a song.</p>
     <p class="small">Sound is analysed on your phone and nothing is uploaded. Clips you collect stay on this phone.</p>
     <button class="btn go" id="introGo">Let's honk</button>
+    <button class="btn" id="introHelp" style="width:100%;margin-top:8px">How to use</button>
+  </div>
+</div>
+
+<div class="intro hidden" id="help">
+  <div class="card help">
+    <h1>How to use</h1>
+    <h2>Live: play along right now</h2>
+    <ol>
+      <li>Tap <b>Start the band</b> and hold the phone towards the noise.</li>
+      <li>Every horn, whistle or bell becomes a burst on screen and a note in the beat. The first one sets the key.</li>
+      <li>Tap a burst to play it again. Try the four styles at the bottom.</li>
+      <li><b>Record 30 s</b> keeps a clip; name it, then Save or Share.</li>
+    </ol>
+    <h2>Collect: grab bits of your day</h2>
+    <ol>
+      <li>Pick <b>Sound</b> (horns, bells), <b>Voice</b> (say something) or <b>Hum</b> (hum a tune).</li>
+      <li>Type a name or tap a tag, then tap <b>Grab</b>. Tap again to stop (up to 15 s).</li>
+      <li>On a dashboard, switch on <b>Auto-grab</b> and every passing horn is kept for you.</li>
+    </ol>
+    <h2>Studio: tonight's song</h2>
+    <ol>
+      <li>Pick the day, a style and a tempo.</li>
+      <li>Want a video for WhatsApp Status? Tap <b>Video</b> so it lights up.</li>
+      <li>Tap <b>Make my song</b>. About a minute later, name it, then Save or Share.</li>
+      <li><b>Week mix</b> strings the last seven days together as one track.</li>
+    </ol>
+    <h2>Deck: be the DJ</h2>
+    <ol>
+      <li>Pads along the top are your clips: tap to play them on the beat.</li>
+      <li>Drag on the big pad: left to muffle, right to thin, up for echo.</li>
+      <li><b>Hold to build</b>, let go to drop. <b>Hold to repeat</b> stutters. <b>Scratch</b> scratches the last sound.</li>
+      <li>Faders set the levels; <b>M</b> mutes. <b>Tilt FX</b> lets you lean the phone instead of dragging.</li>
+      <li>Shake the phone for a drop.</li>
+    </ol>
+    <h2>Where things go</h2>
+    <p>In the app, tracks and videos save to <b>Downloads / Honk Orchestra</b>. In a browser they go to your downloads. Grabs stay inside the app until you make a song from them.</p>
+    <button class="btn go" id="helpClose">Got it</button>
   </div>
 </div>
 
@@ -1550,6 +1595,9 @@ async function goLive() {
   }
 }
 $("introGo").onclick = () => $("intro").classList.add("hidden");
+$("helpBtn").onclick = () => $("help").classList.remove("hidden");
+$("introHelp").onclick = () => { $("intro").classList.add("hidden"); $("help").classList.remove("hidden"); };
+$("helpClose").onclick = () => $("help").classList.add("hidden");
 $("go").onclick = () => {
   if (listening) { listening = false; stopBeat(); $("go").textContent = "Play"; updateStats(); return; }
   goLive();

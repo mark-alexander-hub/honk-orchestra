@@ -18,6 +18,15 @@ sound gets tuned and dropped into a beat, and one honk becomes a little riff. A 
   <img src="docs/deck.png" width="200" alt="DJ deck: FX pad, build and drop, scratch, mixer">
 </p>
 
+## Quick start
+
+1. **Live:** tap *Start the band*, hold the phone towards the traffic. Each horn becomes a note. Tap a burst to replay it.
+2. **Collect** on the way: choose Sound, Voice or Hum, name or tag it, tap *Grab*, tap again to stop.
+3. **Studio** at night: pick the day and a style, tap *Video* if you want one, then *Make my song*. Name it, Save or Share.
+4. **Deck:** play the pads, drag the FX pad, hold to build and let go to drop. Shake for a drop.
+
+The same guide is inside the app and the page: tap **How to use** at the top.
+
 ## Day Mix: collect your day, get a song tonight
 
 - **Collect:** tap **Grab** whenever you hear something good (a horn, the chai stall, a temple bell, rain,
