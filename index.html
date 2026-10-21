@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Honk Orchestra</title>
+<meta name="description" content="Turns the horns, whistles and chirps around you into music, live, in your browser.">
+<meta name="theme-color" content="#16161a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ffc928'/%3E%3Cpath d='M14 26h10l14-10v32L24 38H14z' fill='%2316161a'/%3E%3Cpath d='M44 22c4 3 6 6 6 10s-2 7-6 10' stroke='%2316161a' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --road: #16161a;
+    --tar: #222228;
+    --paint: #ffc928;
+    --auto: #2f9e6e;
+    --ink: #f4efe4;
+    --dim: #a59f93;
+    --hot: #ff5a3c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--road); color: var(--ink); font-family: "DM Sans", system-ui, sans-serif; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; left: 0; right: 0; top: 0; padding: calc(14px + env(safe-area-inset-top)) 16px 0; pointer-events: none; }
+  .title { font-family: Bungee, sans-serif; font-size: clamp(22px, 6vw, 34px); letter-spacing: .5px; color: var(--paint); text-shadow: 3px 3px 0 #000; line-height: 1; }
+  .stats { margin-top: 6px; font-size: 14px; color: var(--dim); }
+  .stats b { color: var(--ink); }
+  .toast { margin-top: 10px; display: inline-block; background: var(--paint); color: #111; font-weight: 700; padding: 6px 10px; border-radius: 8px; transform: rotate(-1.5deg); opacity: 0; transition: opacity .3s; font-size: 14px; }
+  .toast.show { opacity: 1; }
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 0 16px calc(16px + env(safe-area-inset-bottom)); display: grid; gap: 10px; }
+  .styles { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .chip { border: 2px solid var(--paint); background: transparent; color: var(--paint); font: 600 14px "DM Sans", sans-serif; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--paint); color: #111; }
+  .row { display: flex; gap: 10px; }
+  .btn { flex: 1; border: 0; border-radius: 14px; padding: 14px 10px; font: 700 16px "DM Sans", sans-serif; cursor: pointer; background: var(--tar); color: var(--ink); box-shadow: 0 3px 0 #000; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+  .btn.go { background: var(--paint); color: #111; font-family: Bungee, sans-serif; font-weight: 400; font-size: 18px; }
+  .btn.rec { background: var(--hot); color: #fff; }
+  .btn:disabled { opacity: .45; }
+  .intro { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(10,10,12,.82); z-index: 5; }
+  .card { max-width: 420px; background: var(--tar); border: 3px solid var(--paint); border-radius: 18px; padding: 22px 20px; box-shadow: 8px 8px 0 #000; transform: rotate(-.6deg); }
+  .card h1 { font-family: Bungee, sans-serif; color: var(--paint); font-size: 30px; margin: 0 0 10px; line-height: 1.05; font-weight: 400; }
+  .card p { margin: 8px 0; line-height: 1.45; }
+  .card .small { color: var(--dim); font-size: 13px; }
+  .card .btn { width: 100%; margin-top: 14px; }
+  .hidden { display: none !important; }
+  .saved { position: fixed; left: 16px; right: 16px; bottom: calc(150px + env(safe-area-inset-bottom)); background: var(--ink); color: #111; border-radius: 14px; padding: 12px; display: flex; gap: 10px; align-items: center; z-index: 4; box-shadow: 4px 4px 0 #000; }
+  .saved span { flex: 1; font-weight: 600; font-size: 14px; }
+  .saved a, .saved button { font: 700 14px "DM Sans", sans-serif; border: 0; border-radius: 10px; padding: 9px 12px; background: #111; color: var(--paint); text-decoration: none; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="road"></canvas>
+
+<div class="hud">
+  <div class="title">Honk Orchestra</div>
+  <div class="stats" id="stats">Waiting for the street to start playing</div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<div class="dock">
+  <div class="styles" id="styles">
+    <button class="chip" data-style="lofi" aria-pressed="true">Lo-fi</button>
+    <button class="chip" data-style="dhol" aria-pressed="false">Dhol</button>
+    <button class="chip" data-style="techno" aria-pressed="false">Techno</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="fake" disabled>Fake honk</button>
+    <button class="btn" id="remix">Remix a file</button>
+    <input type="file" id="file" accept="audio/*,video/*" hidden>
+    <button class="btn rec" id="rec" disabled>Record 30 s</button>
+  </div>
+  <button class="btn go" id="go">Start the band</button>
+</div>
+
+<div class="saved hidden" id="saved">
+  <span id="savedText">Your remix is ready</span>
+  <button id="share" class="hidden">Share</button>
+  <a id="download" download>Save</a>
+</div>
+
+<div class="intro" id="intro">
+  <div class="card">
+    <h1>The street is the band.</h1>
+    <p>Every horn, pressure-cooker whistle, bird or doorbell your phone hears gets tuned and dropped into a beat. One honk becomes a riff. A traffic jam becomes a song.</p>
+    <p>Hold the phone where the noise is. <b>Earphones sound best</b>; on the speaker it tries to ignore its own sounds.</p>
+    <p class="small">The microphone is listened to live and nothing is uploaded. Only a recording you choose to make is saved, on your phone.</p>
+    <button class="btn go" id="introGo">Let's honk</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ---------- Small FFT (radix 2, in place) ----------
+function makeFft(n) {
+  const cos = new Float64Array(n / 2), sin = new Float64Array(n / 2);
+  for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = -Math.sin(2 * Math.PI * i / n); }
+  return function (re, im) {
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const half = len >> 1, step = n / len;
+      for (let i = 0; i < n; i += len) {
+        for (let k = 0; k < half; k++) {
+          const c = cos[k * step], s = sin[k * step], a = i + k, b = a + half;
+          const xr = re[b] * c - im[b] * s, xi = re[b] * s + im[b] * c;
+          re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+        }
+      }
+    }
+  };
+}
+
+// ---------- Styles ----------
+// Each style: tempo, swing, the scale honks are tuned to, bass roots per half bar, and 16-step drum rows.
+const STYLES = {
+  lofi: {
+    name: "lo-fi", bpm: 84, swing: 0.16, scale: [0, 2, 4, 7, 9], roots: [0, 9, 5, 7], riff: [0, 2, 4, 2],
+    drums: { kick: "x.....x...x.....", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.xx" },
+  },
+  dhol: {
+    name: "dhol", bpm: 108, swing: 0, scale: [0, 1, 4, 5, 7, 8, 11], roots: [0, 0, 5, 7], riff: [0, 1, 2, 4],
+    drums: { dha: "x..x..x.x..x..x.", tak: "..x...x...x..xx.", shaker: "xxxxxxxxxxxxxxxx" },
+  },
+  techno: {
+    name: "techno", bpm: 122, swing: 0, scale: [0, 3, 5, 7, 10], roots: [0, 8, 3, 10], riff: [0, 2, 0, 3],
+    drums: { kick: "x...x...x...x...", clap: "....x.......x...", hat: "..x...x...x...x." },
+  },
+};
+
+const NOTE = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+const midiOf = f => 69 + 12 * Math.log2(f / 440);
+const freqOf = m => 440 * Math.pow(2, (m - 69) / 12);
+
+// ---------- State ----------
+let ctx, master, wet, recDest, micGain;
+let style = STYLES.lofi;
+let keyMidi = 57;          // A3 until the first honk sets the key
+let keySet = false;
+let honks = 0;
+let running = false;
+const slots = [];          // honks living in the loop
+const outputs = [];        // notes we're playing, so we don't hear ourselves
+const bubbles = [];
+let beatPulse = 0;
+
+const $ = id => document.getElementById(id);
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 3500);
+}
+function updateStats() {
+  $("stats").innerHTML = honks
+    ? `<b>${honks}</b> sound${honks === 1 ? "" : "s"} turned into music · key of <b>${NOTE[((keyMidi % 12) + 12) % 12]}</b> · ${style.name}`
+    : `Listening… key of <b>${NOTE[((keyMidi % 12) + 12) % 12]}</b> · ${style.name} · the first honk sets the key`;
+}
+
+// ---------- Audio setup ----------
+async function start(withMic = true) {
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.9;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.ratio.value = 4;
+  // A dotted-eighth echo gives the honks some space.
+  wet = ctx.createGain(); wet.gain.value = 0.28;
+  const delay = ctx.createDelay(2); const fb = ctx.createGain(); fb.gain.value = 0.32;
+  const tone = ctx.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 2600;
+  wet.connect(delay); delay.connect(tone); tone.connect(fb); fb.connect(delay); tone.connect(master);
+  setDelay = () => { delay.delayTime.value = 0.75 * 60 / style.bpm; };
+  setDelay();
+  master.connect(comp); comp.connect(ctx.destination);
+  recDest = ctx.createMediaStreamDestination();
+  comp.connect(recDest);
+
+  let mic = null;
+  if (withMic) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+      mic = ctx.createMediaStreamSource(stream);
+      // A little of the real street goes into recordings only, for atmosphere.
+      micGain = ctx.createGain(); micGain.gain.value = 0.18;
+      mic.connect(micGain); micGain.connect(recDest);
+    } catch (err) {
+      toast("No microphone, but you can still remix a file");
+    }
+  }
+
+  const worklet = `class Tap extends AudioWorkletProcessor {
+    constructor() { super(); this.b = new Float32Array(1024); this.n = 0; }
+    process(inputs) {
+      const ch = inputs[0] && inputs[0][0];
+      if (ch) for (let i = 0; i < ch.length; i++) { this.b[this.n++] = ch[i]; if (this.n === 1024) { this.port.postMessage(this.b.slice(0)); this.n = 0; } }
+      return true;
+    }
+  } registerProcessor("tap", Tap);`;
+  await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet], { type: "application/javascript" })));
+  tap = new AudioWorkletNode(ctx, "tap");
+  const sink = ctx.createGain(); sink.gain.value = 0;
+  if (mic) mic.connect(tap);
+  tap.connect(sink); sink.connect(ctx.destination);
+  tap.port.onmessage = e => feed(e.data);
+
+  setupAnalysis(ctx.sampleRate);
+  running = true;
+  nextStepTime = ctx.currentTime + 0.1;
+  setInterval(schedule, 25);
+  try { await navigator.wakeLock?.request("screen"); } catch (_) {}
+  $("fake").disabled = false; $("rec").disabled = !window.MediaRecorder;
+  $("go").textContent = "Pause";
+  updateStats();
+}
+let tap, setDelay = () => {};
+
+// ---------- Listening: find honk-like sounds ----------
+// A honk, whistle or chirp is a steady, narrow tone well above the street's background roar.
+const N = 4096, HOP = 1024;
+let sr, ring, ringLen, total = 0, fft, win, re, im, P, floor, learned = 0, lo, hi, cand = null, lastEventEnd = 0;
+function setupAnalysis(rate) {
+  sr = rate; ringLen = Math.round(sr * 4); ring = new Float32Array(ringLen);
+  fft = makeFft(N); win = new Float64Array(N); re = new Float64Array(N); im = new Float64Array(N);
+  P = new Float64Array(N / 2); floor = new Float64Array(N / 2);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+  lo = Math.floor(220 / (sr / N)); hi = Math.floor(4000 / (sr / N));
+}
+function feed(block) {
+  for (let i = 0; i < block.length; i++) ring[(total + i) % ringLen] = block[i];
+  total += block.length;
+  if (total >= N) analyse();
+}
+function analyse() {
+  let rms = 0;
+  for (let i = 0; i < N; i++) {
+    const s = ring[(total - N + i) % ringLen];
+    re[i] = s * win[i]; im[i] = 0;
+    if (i >= N - HOP) rms += s * s;
+  }
+  rms = Math.sqrt(rms / HOP);
+  fft(re, im);
+  for (let k = 0; k < N / 2; k++) P[k] = re[k] * re[k] + im[k] * im[k] + 1e-9;
+
+  if (learned < 30) {
+    for (let k = 0; k < N / 2; k++) floor[k] += (P[k] - floor[k]) / (learned + 1);
+    learned++;
+    return;
+  }
+
+  const now = ctx.currentTime;
+  for (let i = outputs.length - 1; i >= 0; i--) if (outputs[i].until < now) outputs.splice(i, 1);
+
+  // Candidate peaks: loud against the floor, a local maximum, and narrow against their neighbours.
+  let best = -1, bestSnr = 0;
+  const peaks = [];
+  for (let k = lo; k <= hi; k++) {
+    const snr = P[k] / floor[k];
+    if (snr < 14 || P[k] < P[k - 1] || P[k] < P[k + 1] || P[k] < P[k - 2] || P[k] < P[k + 2]) continue;
+    let side = 0, cnt = 0;
+    for (let j = k - 14; j <= k + 14; j++) if (Math.abs(j - k) > 3) { side += P[j]; cnt++; }
+    if (P[k] / (side / cnt) < 9) continue;
+    peaks.push([k, snr]);
+    if (snr > bestSnr) { bestSnr = snr; best = k; }
+  }
+  // The fundamental is the lowest strong peak; horns come with a ladder of overtones above it.
+  let f0 = 0;
+  for (const [k, snr] of peaks) {
+    if (snr < bestSnr * 0.2) continue;
+    const a = Math.log(P[k - 1]), b = Math.log(P[k]), c = Math.log(P[k + 1]);
+    const f = (k + 0.5 * (a - c) / (a - 2 * b + c)) * sr / N;
+    // Voices have their root below the horn range, so their overtones come with a strong partner at
+    // half the frequency. A horn's lowest note has nothing underneath it.
+    const half = Math.round(k / 2);
+    const under = Math.max(P[half - 1], P[half], P[half + 1]) / floor[half];
+    if (under > snr * 0.25) continue;
+    if (!isOwnSound(f)) { f0 = f; break; }
+  }
+
+  // Keep learning the background slowly, faster while nothing tonal is happening.
+  const rate = f0 ? 0.002 : 0.02;
+  for (let k = 0; k < N / 2; k++) floor[k] += (Math.min(P[k], floor[k] * 20) - floor[k]) * rate;
+
+  if (f0) {
+    if (cand && Math.abs(f0 / cand.f - 1) < 0.05) {
+      cand.fs.push(f0); cand.miss = 0; cand.level = Math.max(cand.level, rms);
+      // A honk holds its pitch; speech and music slide around. Need ~0.1 s of a steady note.
+      if (!cand.active && cand.fs.length >= 5) {
+        const recent = cand.fs.slice(-5);
+        if (Math.max(...recent) / Math.min(...recent) < 1.025) cand.active = true;
+      }
+      if (cand.active && total - cand.start > sr * 1.1) endCandidate();
+    } else {
+      if (cand && cand.active) endCandidate();
+      cand = { f: f0, fs: [f0], start: total - Math.round(N * 0.75), miss: 0, active: false, level: rms };
+    }
+  } else if (cand) {
+    if (++cand.miss >= 2) { if (cand.active) endCandidate(); cand = null; }
+  }
+}
+function isOwnSound(f) {
+  for (const o of outputs) if (o.lo && f >= o.lo && f <= o.hi) return true;
+  for (const o of outputs) if (o.f) for (const m of [0.5, 1, 2, 3, 4]) if (Math.abs(f / (o.f * m) - 1) < 0.045) return true;
+  return false;
+}
+function endCandidate() {
+  const c = cand; cand = null;
+  const end = total - c.miss * HOP;
+  if (c.start < lastEventEnd + sr * 0.25 || end - c.start < sr * 0.1) return;
+  lastEventEnd = end;
+  const fs = c.fs.slice().sort((a, b) => a - b);
+  const f = fs[fs.length >> 1];
+  const len = Math.min(end - c.start + Math.round(sr * 0.05), Math.round(sr * 1.2));
+  const buf = ctx.createBuffer(1, len, sr);
+  const d = buf.getChannelData(0);
+  let peak = 1e-4;
+  for (let i = 0; i < len; i++) { d[i] = ring[(c.start + i) % ringLen]; peak = Math.max(peak, Math.abs(d[i])); }
+  // Even out loud and quiet honks, with short fades so there are no clicks.
+  const gain = Math.min(0.9 / peak, 30), fade = Math.round(sr * 0.012);
+  for (let i = 0; i < len; i++) d[i] *= gain * Math.min(1, i / fade, (len - 1 - i) / fade);
+  hlog.push([Math.round(f), +(end / sr).toFixed(2)]); if (hlog.length > 60) hlog.shift();
+  onHonk(f, buf, c.level);
+}
+const hlog = [];
+
+// ---------- Turning a honk into music ----------
+function snapToScale(f) {
+  const m = midiOf(f);
+  let bestM = Math.round(m), bestD = 99;
+  for (let o = -3; o <= 6; o++) for (const s of style.scale) {
+    const cand = keyMidi + 12 * o + s;
+    if (Math.abs(cand - m) < bestD) { bestD = Math.abs(cand - m); bestM = cand; }
+  }
+  return bestM;
+}
+function scaleStep(m, steps) {
+  // Move a note up the scale by a number of scale steps.
+  const sc = style.scale, rel = ((m - keyMidi) % 12 + 12) % 12;
+  let idx = sc.indexOf(rel); if (idx < 0) idx = 0;
+  const oct = Math.floor((m - keyMidi - rel) / 12);
+  const t = idx + steps;
+  return keyMidi + 12 * (oct + Math.floor(t / sc.length)) + sc[((t % sc.length) + sc.length) % sc.length];
+}
+const WORDS = [[350, ["POOOM", "BWAAM", "HONNK"]], [550, ["PAAP!", "POM POM", "PAA-PAA"]], [900, ["BEEP!", "PEEP", "BEE-BEEP"]], [1600, ["PEEEP", "TWEET", "PING!"]], [99999, ["WHEEE", "TSEEE", "FWEEE"]]];
+function onHonk(f, buf, level) {
+  if (!keySet) {
+    keyMidi = Math.round(midiOf(f)); while (keyMidi > 64) keyMidi -= 12; while (keyMidi < 52) keyMidi += 12;
+    keySet = true;
+    toast(`Your first honk set the key: ${NOTE[keyMidi % 12]}`);
+  }
+  honks++; updateStats();
+  const target = snapToScale(f);
+  const words = WORDS.find(w => f < w[0])[1];
+  const hue = Math.max(0, Math.min(1, (Math.log2(f) - Math.log2(220)) / 4));
+  const bubble = { text: words[Math.floor(Math.random() * words.length)], hue, x: 0.15 + Math.random() * 0.7, y: 1.05, ty: 0.22 + Math.random() * 0.45, r: 26 + Math.min(1, level * 8) * 24, pulse: 1, born: performance.now(), life: 1 };
+  bubbles.push(bubble);
+  // Land on the next free eighth note so it plays in time, then repeat it as a little riff.
+  let step = (curStep + 2) & ~1;
+  for (let tries = 0; tries < 16 && slots.some(s => s.step === step % 32); tries++) step += 2;
+  slots.push({ buf, f, target, step: step % 32, plays: 0, life: 4, bubble });
+  while (slots.length > 10) { const old = slots.shift(); old.bubble.life = 0; }
+}
+function playSample(slot, when) {
+  const m = scaleStep(slot.target, style.riff[slot.plays % style.riff.length]);
+  let rate = freqOf(m) / slot.f;
+  while (rate > 2.2) rate /= 2; while (rate < 0.45) rate *= 2;
+  const src = ctx.createBufferSource(); src.buffer = slot.buf; src.playbackRate.value = rate;
+  const g = ctx.createGain(); g.gain.value = 0.55 * Math.pow(0.82, slot.plays);
+  src.connect(g); g.connect(master); g.connect(wet);
+  src.start(when);
+  const dur = slot.buf.duration / rate;
+  outputs.push({ f: slot.f * rate, until: when + dur + 2.2 });
+  setTimeout(() => { slot.bubble.pulse = 1; }, Math.max(0, (when - ctx.currentTime) * 1000));
+  slot.plays++;
+}
+
+// ---------- The band ----------
+let curStep = 0, nextStepTime = 0;
+function schedule() {
+  if (!running) return;
+  const stepDur = 60 / style.bpm / 4;
+  while (nextStepTime < ctx.currentTime + 0.12) {
+    const s16 = curStep % 16;
+    const t = nextStepTime + (s16 % 2 ? style.swing * stepDur : 0);
+    playDrums(s16, t);
+    if (curStep % 8 === 0) playBass(t, stepDur);
+    if (s16 === 0) setTimeout(() => { beatPulse = 1; }, Math.max(0, (t - ctx.currentTime) * 1000));
+    for (const slot of slots) if (slot.step === curStep) {
+      if (slot.plays < slot.life) playSample(slot, t);
+    }
+    for (let i = slots.length - 1; i >= 0; i--) if (slots[i].plays >= slots[i].life) { slots[i].bubble.life = 0; slots.splice(i, 1); }
+    nextStepTime += stepDur;
+    curStep = (curStep + 1) % 32;
+  }
+}
+function env(g, t, a, peak, d) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + a);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
+}
+let noiseBuf;
+function noise() {
+  if (!noiseBuf) {
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const s = ctx.createBufferSource(); s.buffer = noiseBuf; return s;
+}
+function hit(t, { freq = 0, to = 0, len = 0.2, vol = 0.5, type = "sine", band = 0, hp = 0 }) {
+  const g = ctx.createGain(); g.connect(master);
+  if (freq) outputs.push({ f: freq, until: t + len + 0.5 }, ...(to ? [{ f: to, until: t + len + 0.5 }] : []));
+  // Noise drums make small phone speakers ring at their own pitch; ignore that range while they play.
+  if (hp) outputs.push({ lo: 2600, hi: 99999, until: t + len + 0.3 });
+  if (band) outputs.push({ lo: band * 0.6, hi: band * 2, until: t + len + 0.3 });
+  let src;
+  if (freq) {
+    src = ctx.createOscillator(); src.type = type; src.frequency.setValueAtTime(freq, t);
+    if (to) src.frequency.exponentialRampToValueAtTime(to, t + len * 0.6);
+  } else src = noise();
+  let node = src;
+  if (band) { const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = band; f.Q.value = 1.2; node.connect(f); node = f; }
+  if (hp) { const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = hp; node.connect(f); node = f; }
+  node.connect(g); env(g, t, 0.003, vol, len);
+  src.start(t); src.stop(t + len + 0.05);
+}
+function playDrums(s, t) {
+  const d = style.drums, on = row => row && row[s] === "x";
+  if (on(d.kick)) hit(t, { freq: 130, to: 42, len: 0.32, vol: 0.9 });
+  if (on(d.snare)) { hit(t, { band: 1800, len: 0.16, vol: 0.35 }); hit(t, { freq: 190, len: 0.08, vol: 0.2, type: "triangle" }); }
+  if (on(d.clap)) { hit(t, { band: 1500, len: 0.12, vol: 0.4 }); hit(t + 0.012, { band: 1300, len: 0.1, vol: 0.3 }); }
+  if (on(d.hat)) hit(t, { hp: 7000, len: s % 4 === 2 ? 0.07 : 0.035, vol: 0.13 });
+  if (on(d.dha)) hit(t, { freq: 95, to: 60, len: 0.38, vol: 0.85, type: "sine" });
+  if (on(d.tak)) { hit(t, { freq: 340, len: 0.09, vol: 0.32, type: "triangle" }); hit(t, { band: 3000, len: 0.05, vol: 0.18 }); }
+  if (on(d.shaker)) hit(t, { hp: 6000, len: 0.03, vol: s % 2 ? 0.05 : 0.09 });
+}
+function playBass(t, stepDur) {
+  const root = keyMidi - 24 + style.roots[(curStep >> 3) % 4];
+  const f = freqOf(root);
+  const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = f;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 500;
+  const g = ctx.createGain(); o.connect(lp); lp.connect(g); g.connect(master);
+  env(g, t, 0.01, 0.32, stepDur * 7);
+  o.start(t); o.stop(t + stepDur * 8);
+  outputs.push({ f, until: t + stepDur * 8 + 0.4 });
+}
+
+// A synthetic two-tone car horn, fed straight into the listener (and quietly to the speaker).
+function fakeHonk() {
+  const t = ctx.currentTime + 0.02, len = 0.35 + Math.random() * 0.3;
+  const base = [330, 392, 415, 440, 494, 523][Math.floor(Math.random() * 6)];
+  const g = ctx.createGain(); g.gain.value = 0;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.25, t + 0.02); g.gain.setValueAtTime(0.25, t + len); g.gain.linearRampToValueAtTime(0, t + len + 0.03);
+  for (const [f, type] of [[base, "sawtooth"], [base * 1.26, "square"]]) {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.connect(g); o.start(t); o.stop(t + len + 0.05);
+  }
+  const quiet = ctx.createGain(); quiet.gain.value = 0.15;
+  g.connect(tap); g.connect(quiet); quiet.connect(master);
+}
+
+// ---------- Recording ----------
+function record() {
+  const btn = $("rec");
+  const types = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"];
+  const type = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+  const mr = new MediaRecorder(recDest.stream, type ? { mimeType: type } : undefined);
+  const chunks = [];
+  mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+  mr.onstop = () => {
+    const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+    const ext = (mr.mimeType || "").includes("mp4") ? "m4a" : (mr.mimeType || "").includes("ogg") ? "ogg" : "webm";
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+    const name = `honk-orchestra-${stamp}.${ext}`;
+    const url = URL.createObjectURL(blob);
+    $("download").href = url; $("download").download = name;
+    $("savedText").textContent = `${honks} sounds, 30 seconds. Your remix is ready.`;
+    if (window.HonkApp) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const where = window.HonkApp.save(name, blob.type, reader.result.split(",")[1]);
+        $("savedText").textContent = where ? `Saved to ${where}` : "Couldn't save the recording";
+        $("download").classList.add("hidden");
+        $("share").classList.remove("hidden");
+        $("share").onclick = () => window.HonkApp.share();
+        $("saved").classList.remove("hidden");
+      };
+      reader.readAsDataURL(blob);
+      btn.disabled = false; btn.textContent = "Record 30 s";
+      return;
+    }
+    const file = new File([blob], name, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      $("share").classList.remove("hidden");
+      $("share").onclick = () => navigator.share({ files: [file], title: "Honk Orchestra", text: "The street, remixed." }).catch(() => {});
+    }
+    $("saved").classList.remove("hidden");
+    btn.disabled = false; btn.textContent = "Record 30 s";
+  };
+  mr.start();
+  btn.disabled = true;
+  let left = 30;
+  btn.textContent = `Recording… ${left}`;
+  const iv = setInterval(() => {
+    left--; btn.textContent = `Recording… ${left}`;
+    if (left <= 0) { clearInterval(iv); mr.stop(); }
+  }, 1000);
+}
+
+// ---------- Drawing ----------
+const cv = $("road"), g2 = cv.getContext("2d");
+let W, H, dpr, dash = 0, lastFrame = performance.now();
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = cv.width = innerWidth * dpr; H = cv.height = innerHeight * dpr;
+}
+addEventListener("resize", resize); resize();
+function hueColor(h, a = 1) {
+  // Low honks warm (auto-rickshaw yellow, signal orange), high ones cool (sky, neon green).
+  const stops = [[255, 120, 60], [255, 201, 40], [120, 220, 120], [80, 200, 255], [190, 140, 255]];
+  const x = h * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(x)), t = x - i;
+  const c = stops[i].map((v, j) => Math.round(v + (stops[i + 1][j] - v) * t));
+  return `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+}
+function draw(now) {
+  const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
+  g2.fillStyle = "#16161a"; g2.fillRect(0, 0, W, H);
+  // Road: two lanes of dashes that run at the band's tempo and flash on the downbeat.
+  const speed = (running ? style.bpm : 30) * 2.2 * dpr;
+  dash = (dash + speed * dt) % (90 * dpr);
+  beatPulse *= Math.pow(0.02, dt);
+  for (const lx of [0.33, 0.67]) {
+    g2.fillStyle = `rgba(255,201,40,${0.35 + 0.5 * beatPulse})`;
+    for (let y = -90 * dpr + dash; y < H; y += 90 * dpr) g2.fillRect(W * lx - 3 * dpr, y, 6 * dpr, 46 * dpr);
+  }
+  // Honk bubbles
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const b = bubbles[i];
+    b.y += (b.ty - b.y) * Math.min(1, dt * 3);
+    b.pulse *= Math.pow(0.03, dt);
+    if (b.life <= 0) { b.fade = (b.fade ?? 1) - dt * 1.5; if (b.fade <= 0) { bubbles.splice(i, 1); continue; } }
+    const a = b.fade ?? 1;
+    const wob = Math.sin(now / 500 + b.x * 10) * 4 * dpr;
+    const x = b.x * W + wob, y = b.y * H, r = (b.r * (1 + 0.35 * b.pulse)) * dpr;
+    g2.save();
+    g2.translate(x, y); g2.rotate(Math.sin(b.x * 20) * 0.12);
+    g2.fillStyle = "rgba(0,0,0," + 0.5 * a + ")"; burst(r, 5 * dpr, 5 * dpr);
+    g2.fillStyle = hueColor(b.hue, a); burst(r, 0, 0);
+    g2.fillStyle = `rgba(20,20,24,${a})`;
+    g2.font = `${Math.round(r * 0.42)}px Bungee, sans-serif`;
+    g2.textAlign = "center"; g2.textBaseline = "middle";
+    g2.fillText(b.text, 0, 2 * dpr);
+    g2.restore();
+  }
+  requestAnimationFrame(draw);
+}
+function burst(r, ox, oy) {
+  // Comic-book "sound effect" burst
+  g2.beginPath();
+  const n = 14;
+  for (let i = 0; i <= n * 2; i++) {
+    const ang = (i / (n * 2)) * Math.PI * 2, rr = i % 2 ? r * 0.78 : r * 1.05;
+    const px = ox + Math.cos(ang) * rr * 1.35, py = oy + Math.sin(ang) * rr;
+    i ? g2.lineTo(px, py) : g2.moveTo(px, py);
+  }
+  g2.closePath(); g2.fill();
+}
+requestAnimationFrame(draw);
+
+// ---------- Wiring ----------
+async function go() {
+  $("intro").classList.add("hidden");
+  try { if (!ctx) await start(); }
+  catch (err) {
+    $("intro").classList.remove("hidden");
+    document.querySelector(".card p").textContent = "The microphone didn't start (" + (err.message || err.name) + "). Allow microphone access for this page and try again.";
+  }
+}
+$("introGo").onclick = go;
+$("go").onclick = async () => {
+  if (!ctx) return go();
+  if (ctx.state === "running") { await ctx.suspend(); running = false; $("go").textContent = "Play"; }
+  else { await ctx.resume(); running = true; nextStepTime = ctx.currentTime + 0.1; $("go").textContent = "Pause"; }
+};
+$("fake").onclick = () => fakeHonk();
+$("rec").onclick = () => record();
+$("remix").onclick = () => $("file").click();
+$("file").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  $("intro").classList.add("hidden");
+  try {
+    if (!ctx) await start(false);
+    if (ctx.state !== "running") { await ctx.resume(); running = true; nextStepTime = ctx.currentTime + 0.1; $("go").textContent = "Pause"; }
+    const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+    // The file goes to the listener at full level and to the speaker underneath the band.
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const under = ctx.createGain(); under.gain.value = 0.35;
+    src.connect(tap); src.connect(under); under.connect(master);
+    src.start();
+    toast(`Remixing ${f.name.slice(0, 40)} (${Math.round(buf.duration)} s)`);
+  } catch (err) {
+    toast("Couldn't read that file. Try an mp3, m4a, opus voice note or mp4 video.");
+  }
+};
+$("styles").onclick = e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  style = STYLES[b.dataset.style];
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false"));
+  setDelay(); updateStats();
+};
+// Test hook for automated checks; harmless in normal use.
+window.__honk = () => ({ honks, keyMidi, slots: slots.length, running, learned, log: hlog.slice(-20) });
+window.__mute = on => { master.gain.value = on ? 0 : 0.9; };
+</script>
+</body>
+</html>

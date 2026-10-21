@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateX="22" android:translateY="22">
+        <!-- A horn with sound waves -->
+        <path android:fillColor="#FF16161A" android:pathData="M8,26h12l18,-13v38L20,38H8z" />
+        <path android:strokeColor="#FF16161A" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M45,21c4,3 6,7 6,11s-2,8 -6,11" />
+        <path android:strokeColor="#FF16161A" android:strokeWidth="5" android:strokeLineCap="round" android:pathData="M52,14c6,5 9,11 9,18s-3,13 -9,18" />
+    </group>
+</vector>
