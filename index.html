@@ -64,6 +64,8 @@
   .pad small { font-weight: 600; opacity: .75; }
   .pad .mute { position: absolute; top: 6px; right: 6px; border-radius: 8px; background: rgba(0,0,0,.25); color: #111; font-weight: 700; padding: 3px 7px; }
   select.btn { appearance: none; text-align: center; }
+  input.btn { text-align: center; font-weight: 600; min-width: 0; }
+  input.btn::placeholder { color: var(--dim); font-weight: 400; }
   .slider { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--dim); }
   .slider input { flex: 1; accent-color: var(--paint); }
   .section { font: 400 15px Bungee, sans-serif; color: var(--paint); margin: 6px 0 0; }
@@ -104,7 +106,10 @@
   .card .small { color: var(--dim); font-size: 13px; }
   .card .btn { width: 100%; margin-top: 14px; }
   .hidden { display: none !important; }
-  .saved { position: fixed; left: 16px; right: 16px; bottom: calc(150px + env(safe-area-inset-bottom)); background: var(--ink); color: #111; border-radius: 14px; padding: 12px; display: flex; gap: 10px; align-items: center; z-index: 6; box-shadow: 4px 4px 0 #000; }
+  .saved { position: fixed; left: 16px; right: 16px; bottom: calc(150px + env(safe-area-inset-bottom)); background: var(--ink); color: #111; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 6; box-shadow: 4px 4px 0 #000; }
+  .saved input { font: 600 15px "DM Sans", sans-serif; padding: 9px 10px; border-radius: 10px; border: 2px solid #111; background: #fff; color: #111; min-width: 0; }
+  .saved .row button { flex: 1; }
+  .saved #closeSaved { flex: 0 0 auto; }
   .saved span { flex: 1; font-weight: 600; font-size: 14px; }
   .saved a, .saved button { font: 700 14px "DM Sans", sans-serif; border: 0; border-radius: 10px; padding: 9px 12px; background: #111; color: var(--paint); text-decoration: none; cursor: pointer; }
 </style>
@@ -151,6 +156,7 @@
   <button class="bigrec" id="clipBtn">Grab</button>
   <div class="meter"><i id="meter"></i></div>
   <p class="hint" id="grabHint">Hear something good? A horn, the chai stall, a temple bell, rain. Tap Grab, and tap again to stop (up to 15 s). Tonight the Studio turns today's clips into a song.</p>
+  <input class="btn" id="grabName" placeholder="Name this grab (optional), e.g. Silk Board 6pm" maxlength="40">
   <div class="styles tagrow" id="tagRow">
     <button class="chip" data-tag="Horn" aria-pressed="false">Horn</button>
     <button class="chip" data-tag="Chai" aria-pressed="false">Chai</button>
@@ -211,10 +217,13 @@
 </div>
 
 <div class="saved hidden" id="saved">
-  <span id="savedText">Your track is ready</span>
-  <button id="share" class="hidden">Share</button>
-  <a id="download" download>Save</a>
-  <button id="closeSaved" aria-label="Close">✕</button>
+  <span id="savedText">Your track is ready. Name it:</span>
+  <input id="saveName" placeholder="name" maxlength="60">
+  <div class="row">
+    <button id="download">Save</button>
+    <button id="share" class="hidden">Share</button>
+    <button id="closeSaved" aria-label="Close">✕</button>
+  </div>
 </div>
 
 <div class="intro" id="intro">
@@ -793,32 +802,38 @@ function startRecording(seconds, label, onDone) {
   if (seconds) setTimeout(() => mr.state === "recording" && mr.stop(), seconds * 1000);
   return mr;
 }
+let pending = null;
 function offerFile(blob, name) {
-  const box = $("saved");
-  $("download").classList.remove("hidden"); $("share").classList.add("hidden");
+  const dot = name.lastIndexOf(".");
+  pending = { blob, ext: name.slice(dot), saved: false };
+  $("saveName").value = name.slice(0, dot);
+  $("savedText").textContent = (blob.type.startsWith("video") ? "Your video is ready." : "Your track is ready.") + " Name it, then Save or Share:";
+  const file = new File([blob], name, { type: blob.type });
+  $("share").classList.toggle("hidden", !(window.HonkApp || (navigator.canShare && navigator.canShare({ files: [file] }))));
+  $("saved").classList.remove("hidden");
+}
+function finalName() { return (($("saveName").value.trim() || "honk-orchestra").replace(/[\\/:*?"<>|]/g, "-")) + pending.ext; }
+async function saveNow() {
+  if (!pending) return;
+  const name = finalName();
   if (window.HonkApp) {
-    // In the Android app: the app saves it to Downloads and shares it.
-    const reader = new FileReader();
-    reader.onload = () => {
-      const where = window.HonkApp.save(name, blob.type, reader.result.split(",")[1]);
-      $("savedText").textContent = where ? `Saved to ${where}` : "Couldn't save the recording";
-      $("download").classList.add("hidden");
-      $("share").classList.remove("hidden");
-      $("share").onclick = () => window.HonkApp.share();
-      box.classList.remove("hidden");
-    };
-    reader.readAsDataURL(blob);
+    if (pending.saved && pending.name === name) return;
+    const b64 = await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result.split(",")[1]); rd.readAsDataURL(pending.blob); });
+    const where = window.HonkApp.save(name, pending.blob.type, b64);
+    pending.saved = !!where; pending.name = name;
+    $("savedText").textContent = where ? `Saved as ${name} in ${where}` : "Couldn't save the recording";
     return;
   }
-  $("download").href = URL.createObjectURL(blob); $("download").download = name;
-  $("savedText").textContent = blob.type.startsWith("video") ? "Your video is ready." : "Your track is ready.";
-  const file = new File([blob], name, { type: blob.type });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    $("share").classList.remove("hidden");
-    $("share").onclick = () => navigator.share({ files: [file], title: "Honk Orchestra", text: "My day, remixed." }).catch(() => {});
-  }
-  box.classList.remove("hidden");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(pending.blob); a.download = name; a.click();
+  pending.saved = true; pending.name = name;
+  $("savedText").textContent = `Saved as ${name}`;
 }
+$("download").onclick = () => saveNow();
+$("share").onclick = async () => {
+  if (!pending) return;
+  if (window.HonkApp) { await saveNow(); window.HonkApp.share(); return; }
+  navigator.share({ files: [new File([pending.blob], finalName(), { type: pending.blob.type })], title: "Honk Orchestra" }).catch(() => {});
+};
 $("closeSaved").onclick = () => $("saved").classList.add("hidden");
 
 // ---------- Collect: clips of the day, kept on the phone ----------
@@ -964,7 +979,8 @@ async function toggleClip() {
   mr.onstop = () => {
     clipRec = null; clearTimeout(clipTimer); cancelAnimationFrame(meterRaf);
     btn.classList.remove("on"); btn.textContent = "Grab"; $("meter").style.width = "0";
-    saveClip(new Blob(chunks, { type: mr.mimeType }), "", grabMode, grabTag);
+    saveClip(new Blob(chunks, { type: mr.mimeType }), "", grabMode, $("grabName").value.trim() || grabTag);
+    $("grabName").value = "";
   };
   mr.start(); clipRec = mr;
   btn.classList.add("on");
