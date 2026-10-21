@@ -12,17 +12,32 @@ sound gets tuned and dropped into a beat, and one honk becomes a little riff. A 
 </p>
 
 <p align="center">
-  <img src="docs/intro.png" width="230" alt="Intro card: the street is the band">
-  <img src="docs/playing.png" width="230" alt="Honks caught and turned into music, shown as comic-book bursts">
+    <img src="docs/playing.png" width="200" alt="Live: honks caught and turned into music, shown as comic-book bursts">
+  <img src="docs/collect.png" width="200" alt="Collect: grab clips through the day">
+  <img src="docs/studio.png" width="200" alt="Studio: make a song from today's clips">
 </p>
 
-## What it does
+## Day Mix: collect your day, get a song tonight
+
+- **Collect:** tap **Grab** whenever you hear something good (a horn, the chai stall, a temple bell, rain,
+  someone humming) and it keeps a clip of up to 15 seconds on your phone. You can also add recordings
+  you already have.
+- **Studio:** at night, pick a day and a style and tap **Make my song**. It finds the notes in every clip
+  and arranges about a minute of music: the day's sounds over a drone, the beat coming in, full swing,
+  and an ending where the drums drop out and your last sound rings off. The song is saved and ready to share.
+- **Qawwali** style: harmonium drone, dholak in keherwa, a crowd of hand-claps, and the tempo climbs
+  through the last part the way a qawwali does.
+- Each clip is also a **pad** you can tap to play its sound on the beat, and ✕ leaves a clip out.
+
+Clips stay in the browser's storage on your phone (in the app, inside the app). Nothing is uploaded.
+
+## Live
 
 - **Listens for tonal sounds**: horns, whistles, chirps, bells, humming. Talking, claps and traffic
   rumble don't have a clear pitch, so they pass through.
 - **Tunes them** to the key set by the first honk and plays them back on the beat as a short riff
   (each honk repeats up the scale a few times, then fades out).
-- **Three bands:** Lo-fi, Dhol and Techno.
+- **Four bands:** Lo-fi, Dhol, Techno and Qawwali.
 - **Remix a file:** pick any recording or video on your phone and the band plays along with it.
 - **Record 30 s** and share the remix. A little of the real street goes into the recording for atmosphere.
 - **Fake honk** for trying it at a quiet desk.
