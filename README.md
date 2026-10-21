@@ -30,6 +30,27 @@ sound gets tuned and dropped into a beat, and one honk becomes a little riff. A 
   through the last part the way a qawwali does.
 - Each clip is also a **pad** you can tap to play its sound on the beat, and ✕ leaves a clip out.
 
+### Voice, hum, tags and auto-grab
+
+In Collect, pick what you're grabbing:
+
+- **Sound** (default): horns, bells, whistles. Tag it (Horn, Chai, Temple, Bus, Rain, Bird, Office) and
+  the tag shows on the pad and in the song's file name.
+- **Voice:** say something ("Good morning Bangalore!"). The Studio cuts it into syllable chops and rides
+  them on the beat like a DJ vocal. Tap its pad for a stutter.
+- **Hum:** hum a tune. The Studio finds the notes, moves them into the song's key and plays them back
+  as the lead: a plucked sitar-like string in Qawwali and Dhol, a flute in Lo-fi, a synth in Techno.
+- **Auto-grab horns:** leave Collect open on the dashboard and every horn that goes by is kept as a
+  3-second clip. It uses the microphone and battery while the tab is open, so it's off by default.
+
+### Video, week mix
+
+- **Video:** press the Video toggle next to Make my song and you get a portrait .mp4 with the bursts
+  popping on the beat, ready for WhatsApp Status or a Reel (Chrome and the app; browsers without mp4
+  recording give a .webm).
+- **Week mix:** plays the last seven days' songs back to back, with a filter sweep between days, as one
+  recording.
+
 ### The DJ deck
 
 Under the pads in the Studio:
@@ -39,7 +60,10 @@ Under the pads in the Studio:
 - **Hold to build:** the kick and bass drop out, a snare roll speeds up and a riser climbs. Let go and it
   **drops** on the next downbeat with a crash and a sub boom. Make my song does this by itself before the claps come in.
 - **Scratch:** a vinyl scratch on the last sound that played.
-- **Mixer:** faders and mutes for Drums, Bass, Drone and Sounds.
+- **Hold to repeat:** stutters the last half-beat of the whole mix for as long as you hold.
+- **Mixer:** faders and mutes for Drums, Bass, Drone, Sounds and Lead.
+- **Tilt FX:** lean the phone left or right to sweep the filter without touching the pad.
+- **Shake the phone** to drop (or for a crash and a boom), and **tap a burst** on the Live screen to play it again.
 
 Clips stay in the browser's storage on your phone (in the app, inside the app). Nothing is uploaded.
 

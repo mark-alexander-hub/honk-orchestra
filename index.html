@@ -74,7 +74,7 @@
   .xy .lab { position: absolute; font: 700 12px "DM Sans", sans-serif; color: var(--dim); pointer-events: none; }
   .xy .dot { position: absolute; left: 50%; top: 100%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: var(--paint); box-shadow: 0 0 0 6px rgba(255,201,40,.25), 0 0 30px var(--paint); transition: left .3s, top .3s; pointer-events: none; }
   .xy.on .dot { transition: none; }
-  .mixer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: none; }
+  .mixer { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; flex: none; }
   .fader { display: flex; flex-direction: column; align-items: center; gap: 8px; background: var(--tar); border-radius: 14px; padding: 12px 4px 10px; }
   .fader input { writing-mode: vertical-lr; direction: rtl; height: 130px; width: 28px; accent-color: var(--paint); }
   .fader label { font: 700 13px "DM Sans", sans-serif; }
@@ -82,6 +82,9 @@
   .fader button.muted { background: var(--hot); color: #fff; }
   .btn.hold { touch-action: none; user-select: none; -webkit-user-select: none; }
   .btn.hold.on { background: #fff; color: var(--hot); animation: throb .3s infinite; }
+  .btn[aria-pressed="true"] { background: var(--paint); color: #111; }
+  .panel > .styles { flex: none; }
+  .tagrow .chip { padding: 5px 10px; font-size: 13px; }
   .intro { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(10,10,12,.82); z-index: 5; }
   .card { max-width: 420px; background: var(--tar); border: 3px solid var(--paint); border-radius: 18px; padding: 22px 20px; box-shadow: 8px 8px 0 #000; transform: rotate(-.6deg); }
   .card h1 { font-family: Bungee, sans-serif; color: var(--paint); font-size: 30px; margin: 0 0 10px; line-height: 1.05; font-weight: 400; }
@@ -127,9 +130,24 @@
 
 <!-- Collect: grab bits of the day -->
 <div class="panel hidden" id="collectView">
+  <div class="styles" id="grabModes">
+    <button class="chip" data-mode="sound" aria-pressed="true">Sound</button>
+    <button class="chip" data-mode="voice" aria-pressed="false">Voice</button>
+    <button class="chip" data-mode="hum" aria-pressed="false">Hum</button>
+  </div>
   <button class="bigrec" id="clipBtn">Grab</button>
   <div class="meter"><i id="meter"></i></div>
-  <p class="hint">Hear something good? A horn, the chai stall, a temple bell, rain, someone humming. Tap Grab, and tap again to stop (up to 15 s). Tonight the Studio turns today's clips into a song.</p>
+  <p class="hint" id="grabHint">Hear something good? A horn, the chai stall, a temple bell, rain. Tap Grab, and tap again to stop (up to 15 s). Tonight the Studio turns today's clips into a song.</p>
+  <div class="styles tagrow" id="tagRow">
+    <button class="chip" data-tag="Horn" aria-pressed="false">Horn</button>
+    <button class="chip" data-tag="Chai" aria-pressed="false">Chai</button>
+    <button class="chip" data-tag="Temple" aria-pressed="false">Temple</button>
+    <button class="chip" data-tag="Bus" aria-pressed="false">Bus</button>
+    <button class="chip" data-tag="Rain" aria-pressed="false">Rain</button>
+    <button class="chip" data-tag="Bird" aria-pressed="false">Bird</button>
+    <button class="chip" data-tag="Office" aria-pressed="false">Office</button>
+  </div>
+  <div class="styles"><button class="chip" id="autoGrab" aria-pressed="false">Auto-grab horns (uses the mic while this tab is open)</button></div>
   <div class="row">
     <button class="btn" id="addFile">Add recordings from the phone</button>
     <input type="file" id="clipFile" accept="audio/*,video/*" multiple hidden>
@@ -148,10 +166,13 @@
     <button class="chip" data-style="techno" aria-pressed="false">Techno</button>
   </div>
   <div class="slider">Tempo <input type="range" id="tempo" min="70" max="140" value="92"><b id="tempoVal">92</b></div>
-  <button class="btn go" id="makeSong">Make my song</button>
+  <div class="row">
+    <button class="btn go" id="makeSong" style="flex:2">Make my song</button>
+    <button class="btn" id="outVideo" aria-pressed="false">Video</button>
+  </div>
   <div class="songbar hidden" id="songBar"><i id="songFill"></i></div>
   <p class="hint" id="studioHint"></p>
-  <div class="row"><button class="btn" id="jam">Just jam (beat on)</button></div>
+  <div class="row"><button class="btn" id="jam">Just jam (beat on)</button><button class="btn" id="weekMix">Week mix</button></div>
   <div class="pads" id="pads"></div>
   <div class="section">DJ deck</div>
   <div class="xy" id="xy">
@@ -163,6 +184,8 @@
   <div class="row">
     <button class="btn rec hold" id="build">Hold to build</button>
     <button class="btn" id="scratch">Scratch</button>
+    <button class="btn hold" id="repeat">Hold to repeat</button>
+    <button class="btn" id="tiltFx" aria-pressed="false">Tilt FX</button>
   </div>
   <div class="mixer" id="mixer"></div>
 </div>
@@ -178,6 +201,7 @@
   <div class="card">
     <h1>The street is the band.</h1>
     <p>Every horn, pressure-cooker whistle, bird or doorbell your phone hears gets tuned and dropped into a beat. One honk becomes a riff. A traffic jam becomes a song.</p>
+    <p>Tap a burst on the screen to play it again. Shake the phone to drop the beat.</p>
     <p><b>Live</b> plays along right now. <b>Collect</b> grabs bits of your day, and tonight the <b>Studio</b> turns them into a song.</p>
     <p class="small">Sound is analysed on your phone and nothing is uploaded. Clips you collect stay on this phone.</p>
     <button class="btn go" id="introGo">Let's honk</button>
@@ -355,8 +379,19 @@ function findNotes(buffer) {
 let ctx, master, wet, recDest, tap, listener, setDelay = () => {};
 let fxIn, lowpass, highpass, buildFilter, xyEcho, revSend;
 const buses = {};
-const MIX = { drums: { label: "Drums", level: 1, muted: false }, bass: { label: "Bass", level: 1, muted: false }, drone: { label: "Drone", level: 1, muted: false }, sounds: { label: "Sounds", level: 1, muted: false } };
+const MIX = { drums: { label: "Drums", level: 1, muted: false }, bass: { label: "Bass", level: 1, muted: false }, drone: { label: "Drone", level: 1, muted: false }, sounds: { label: "Sounds", level: 1, muted: false }, lead: { label: "Lead", level: 1, muted: false } };
 let building = null, lastBuf = null;
+let brDry, brIn, brDelay, brFb, brWet;          // beat repeat
+let video = null, wantVideo = false;            // video export while a song plays
+let voxPattern = null;                          // voice chops riding the beat
+const oneShots = [];                            // chops queued by a pad tap
+const confetti = [];
+let autoGrab = false, lastAuto = 0, grabMode = "sound", grabTag = "";
+const HINTS = {
+  sound: "Hear something good? A horn, the chai stall, a temple bell, rain. Tap Grab, and tap again to stop (up to 15 s). Tonight the Studio turns today's clips into a song.",
+  voice: "Say something. \"Good morning Bangalore!\" The Studio chops it into the beat like a DJ vocal.",
+  hum: "Hum a tune for a few seconds, steady and close to the phone. The Studio plays it back as the lead instrument, in tune with the song.",
+};
 let style = STYLES.lofi, tempo = STYLES.lofi.bpm;
 let keyMidi = 57, keySet = false, honks = 0;
 let running = false;      // the beat is going
@@ -402,7 +437,11 @@ async function ensureAudio() {
   lowpass = ctx.createBiquadFilter(); lowpass.type = "lowpass"; lowpass.frequency.value = 20000; lowpass.Q.value = 1.2;
   highpass = ctx.createBiquadFilter(); highpass.type = "highpass"; highpass.frequency.value = 10; highpass.Q.value = 1.2;
   buildFilter = ctx.createBiquadFilter(); buildFilter.type = "highpass"; buildFilter.frequency.value = 10;
-  fxIn.connect(lowpass); lowpass.connect(highpass); highpass.connect(buildFilter); buildFilter.connect(master);
+  fxIn.connect(lowpass); lowpass.connect(highpass); highpass.connect(buildFilter);
+  // Beat repeat: a delay line that always hears the mix; on hold, its input is cut and it feeds itself.
+  brDry = ctx.createGain(); brIn = ctx.createGain(); brDelay = ctx.createDelay(2); brFb = ctx.createGain(); brFb.gain.value = 0; brWet = ctx.createGain(); brWet.gain.value = 0;
+  buildFilter.connect(brDry); brDry.connect(master);
+  buildFilter.connect(brIn); brIn.connect(brDelay); brDelay.connect(brFb); brFb.connect(brDelay); brDelay.connect(brWet); brWet.connect(master);
   for (const k in MIX) { buses[k] = ctx.createGain(); buses[k].connect(fxIn); applyMix(k); }
   wet.connect(delay); delay.connect(tone); tone.connect(fb); fb.connect(delay); tone.connect(fxIn);
   // FX pad sends: the whole mix into the echo, and into a reverb.
@@ -427,6 +466,7 @@ async function ensureAudio() {
   const sink = ctx.createGain(); sink.gain.value = 0;
   tap.connect(sink); sink.connect(ctx.destination);
   listener = new Listener(ctx.sampleRate, (f, data, level) => {
+    if (autoGrab && view === "collect") { autoSave(); return; }
     if (!listening) return;
     const buf = ctx.createBuffer(1, data.length, ctx.sampleRate); buf.copyToChannel(data, 0);
     onHonk(f, buf, level);
@@ -539,6 +579,8 @@ function schedule() {
     }
     if (style.harmonium && s16 === 0 && !building && (drumsOn || song)) playHarmonium(t, stepDur * 16);
     if (s16 === 0) setTimeout(() => { beatPulse = 1; }, Math.max(0, (t - ctx.currentTime) * 1000));
+    if (voxPattern && voxPattern.pat[s16] === "x" && !building) { const ch = voxPattern.chops[voxPattern.i++ % voxPattern.chops.length]; playChop(ch, t, s16 % 4 === 0 ? 1 : 0.96 + Math.random() * 0.08); }
+    for (let i = oneShots.length - 1; i >= 0; i--) if (oneShots[i].at <= curStep) { playChop(oneShots[i].buf, t); oneShots.splice(i, 1); }
     for (const slot of slots) if (slot.step === curStep % 32 && slot.plays < slot.life) playSample(slot, t);
     for (let i = slots.length - 1; i >= 0; i--) if (slots[i].plays >= slots[i].life) { slots[i].bubble.life = 0; slots.splice(i, 1); }
     nextStepTime += stepDur;
@@ -585,7 +627,7 @@ function playDrums(s, t) {
   if (on(d.dha)) hit(t, { freq: 95, to: 60, len: 0.38, vol: 0.85 });
   if (on(d.tak)) { hit(t, { freq: 340, len: 0.09, vol: 0.32, type: "triangle" }); hit(t, { band: 3000, len: 0.05, vol: 0.18 }); }
   if (on(d.shaker)) hit(t, { hp: 6000, len: 0.03, vol: s % 2 ? 0.05 : 0.09 });
-  if (on(d.dholLow)) hit(t, { freq: 120, to: 85, len: 0.28, vol: 0.8 });
+  if (on(d.dholLow)) { hit(t, { freq: 165, to: 68, len: 0.38, vol: 0.85 }); hit(t, { band: 420, len: 0.02, vol: 0.3 }); }
   if (on(d.dholHigh)) { hit(t, { freq: 520, to: 480, len: 0.07, vol: 0.28, type: "triangle" }); hit(t, { band: 3200, len: 0.04, vol: 0.15 }); }
   // Taali: several people clapping, so a few bursts a hair apart. In a song they join in the full section.
   if (on(d.taali) && (!song || song.claps)) for (const [dt, v] of [[0, 0.45], [0.008, 0.35], [0.017, 0.3]]) hit(t + dt, { band: 1100 + dt * 30000, len: 0.07, vol: v });
@@ -606,8 +648,10 @@ function playHarmonium(t, dur) {
   const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1300; lp.connect(g);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.25);
   g.gain.setValueAtTime(0.09, t + dur - 0.2); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+  // A slow wobble like the bellows being worked.
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 5.2; const lg = ctx.createGain(); lg.gain.value = 5; lfo.connect(lg); lfo.start(t); lfo.stop(t + dur + 0.1);
   for (const [m, det] of [[0, -4], [0, 4], [7, 0], [12, 3]]) {
-    const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = freqOf(keyMidi - 12 + m); o.detune.value = det;
+    const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = freqOf(keyMidi - 12 + m); o.detune.value = det; lg.connect(o.detune);
     o.connect(lp); o.start(t); o.stop(t + dur + 0.1);
     outputs.push({ f: freqOf(keyMidi - 12 + m), until: t + dur + 0.5 });
   }
@@ -659,9 +703,15 @@ function drop(t) {
   hit(t, { freq: 130, to: 42, len: 0.32, vol: 0.9 });
   const pool = song ? song.pool : [];
   for (let i = 0; i < 2 && pool.length; i++) { const n = pool[song.next++ % pool.length]; addSlot(noteBuffer(n), n.f, n.level, 3); }
-  setTimeout(() => { $("build").classList.remove("on"); $("build").textContent = "Hold to build"; beatPulse = 1; }, Math.max(0, (t - ctx.currentTime) * 1000));
+  setTimeout(() => { $("build").classList.remove("on"); $("build").textContent = "Hold to build"; beatPulse = 1; popConfetti(); }, Math.max(0, (t - ctx.currentTime) * 1000));
 }
 function releaseBuild() { if (building) building.release = true; }
+function beatRepeat(on) {
+  const now = ctx.currentTime;
+  if (on) brDelay.delayTime.value = 60 / tempo / 2;
+  brIn.gain.setValueAtTime(on ? 0 : 1, now); brFb.gain.setValueAtTime(on ? 1 : 0, now);
+  brWet.gain.setValueAtTime(on ? 1 : 0, now); brDry.gain.setValueAtTime(on ? 0 : 1, now);
+}
 function scratch() {
   const buf = lastBuf;
   if (!buf) { toast("Play a pad first, then scratch it"); return; }
@@ -741,7 +791,7 @@ function offerFile(blob, name) {
     return;
   }
   $("download").href = URL.createObjectURL(blob); $("download").download = name;
-  $("savedText").textContent = "Your track is ready.";
+  $("savedText").textContent = blob.type.startsWith("video") ? "Your video is ready." : "Your track is ready.";
   const file = new File([blob], name, { type: blob.type });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     $("share").classList.remove("hidden");
@@ -768,18 +818,115 @@ const putClip = c => dbDo("readwrite", s => s.put(c));
 const delClip = id => dbDo("readwrite", s => s.delete(id));
 const allClips = () => dbDo("readonly", s => s.getAll());
 
-async function analyseBlob(blob) {
+async function analyseBlob(blob, kind = "sound") {
   await ensureAudio();
   const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
-  return { buf, notes: findNotes(buf) };
+  return {
+    buf,
+    notes: kind === "sound" ? findNotes(buf) : [],
+    chops: kind === "voice" ? findChops(buf) : [],
+    melody: kind === "hum" ? findMelody(buf) : [],
+  };
 }
-async function saveClip(blob, name) {
-  let dur = 0, count = 0;
-  try { const a = await analyseBlob(blob); dur = a.buf.duration; count = a.notes.length; }
-  catch (_) { toast("Couldn't read that recording"); return; }
+function mono(buffer, dec = 1) {
+  const ch = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) ch.push(buffer.getChannelData(c));
+  const n = Math.floor(buffer.length / dec), x = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let v = 0; for (let k = 0; k < dec; k++) for (const c of ch) v += c[i * dec + k]; x[i] = v / (dec * ch.length); }
+  return x;
+}
+// Voice: cut speech into syllable-sized chops wherever the loudness jumps.
+function findChops(buffer) {
+  const sr = buffer.sampleRate, x = mono(buffer), n = x.length;
+  const win = Math.round(sr * 0.01), nf = Math.floor(n / win), rms = new Float32Array(nf);
+  let peak = 0;
+  for (let f = 0; f < nf; f++) { let e = 0; for (let i = 0; i < win; i++) { const v = x[f * win + i]; e += v * v; } rms[f] = Math.sqrt(e / win); peak = Math.max(peak, rms[f]); }
+  const thr = Math.max(0.02, peak * 0.12), chops = [];
+  let f = 2;
+  while (f < nf && chops.length < 24) {
+    let back = 0; const k0 = Math.max(0, f - 8); for (let k = k0; k < f; k++) back += rms[k]; back /= (f - k0) || 1;
+    if (rms[f] > thr && rms[f] > back * 1.8) {
+      const start = f; let cp = rms[f], end = f;
+      while (end < nf - 1 && end - start < 40) { end++; cp = Math.max(cp, rms[end]); if (rms[end] < cp * 0.3) break; }
+      if (end - start >= 6) {
+        const s0 = Math.max(0, start * win - Math.round(sr * 0.005)), s1 = Math.min(n, (end + 1) * win);
+        const d = new Float32Array(s1 - s0); let pk = 1e-4;
+        for (let i = 0; i < d.length; i++) { d[i] = x[s0 + i]; pk = Math.max(pk, Math.abs(d[i])); }
+        const g = Math.min(0.9 / pk, 20), fade = Math.round(sr * 0.006);
+        for (let i = 0; i < d.length; i++) d[i] *= g * Math.min(1, i / fade, (d.length - 1 - i) / fade);
+        chops.push(d);
+      }
+      f = end + 8;
+    } else f++;
+  }
+  return chops;
+}
+// Hum: pitch-track with autocorrelation at 16 kHz and group steady stretches into notes.
+function findMelody(buffer) {
+  const dec = Math.max(1, Math.round(buffer.sampleRate / 16000)), sr = buffer.sampleRate / dec, x = mono(buffer, dec), n = x.length;
+  const frame = 1024, hop = 512, minLag = Math.floor(sr / 900), maxLag = Math.ceil(sr / 70), r = new Float32Array(maxLag + 2);
+  const frames = [];
+  for (let st = 0; st + frame + maxLag <= n; st += hop) {
+    let e = 0; for (let i = 0; i < frame; i++) e += x[st + i] * x[st + i];
+    if (Math.sqrt(e / frame) < 0.012) { frames.push(null); continue; }
+    let max = 0;
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      let sum = 0, e2 = 0;
+      for (let i = 0; i < frame; i++) { sum += x[st + i] * x[st + i + lag]; e2 += x[st + i + lag] * x[st + i + lag]; }
+      r[lag] = sum / Math.sqrt(e * e2 + 1e-9); max = Math.max(max, r[lag]);
+    }
+    if (max < 0.6) { frames.push(null); continue; }
+    // The first clear peak is the pitch; later, bigger ones are octaves below it.
+    let lag0 = 0;
+    for (let lag = minLag + 1; lag < maxLag; lag++) if (r[lag] > 0.85 * max && r[lag] >= r[lag - 1] && r[lag] >= r[lag + 1]) { lag0 = lag; break; }
+    if (!lag0) { frames.push(null); continue; }
+    const a = r[lag0 - 1], b = r[lag0], c = r[lag0 + 1], den = a - 2 * b + c;
+    frames.push(midiOf(sr / (lag0 + (den ? (a - c) / (2 * den) : 0))));
+  }
+  const sm = frames.map((v, i) => { if (v == null) return null; const w = [frames[i - 1], v, frames[i + 1]].filter(q => q != null).sort((p, q) => p - q); return w[w.length >> 1]; });
+  const notes = [], dt = hop / sr; let cur = null;
+  const flush = () => { if (cur && cur.n >= 4) notes.push({ midi: Math.round(cur.sum / cur.n), t: cur.start * dt, dur: (cur.end - cur.start + 1) * dt }); };
+  sm.forEach((m, i) => {
+    if (m != null && cur && Math.abs(m - cur.sum / cur.n) < 0.75) { cur.sum += m; cur.n++; cur.end = i; return; }
+    flush(); cur = m == null ? null : { sum: m, n: 1, start: i, end: i };
+  });
+  flush();
+  const t0 = notes.length ? notes[0].t : 0;
+  for (const nt of notes) nt.t -= t0;
+  return notes;
+}
+function wavBlob(f32, sr) {
+  const b = new ArrayBuffer(44 + f32.length * 2), v = new DataView(b);
+  const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, "RIFF"); v.setUint32(4, 36 + f32.length * 2, true); str(8, "WAVE"); str(12, "fmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, f32.length * 2, true);
+  for (let i = 0; i < f32.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f32[i])) * 32767, true);
+  return new Blob([b], { type: "audio/wav" });
+}
+// Auto-grab: a horn just went by, so keep the last three seconds of the microphone as a clip.
+function autoSave() {
   const now = Date.now();
-  await putClip({ id: now + Math.random(), day: today(), at: now, name: name || "", blob, dur, notes: count, muted: false });
-  toast(count ? `Got it: ${count} note${count === 1 ? "" : "s"} in that clip` : "Got it. No clear notes, so it'll be background texture.");
+  if (now - lastAuto < 4000) return;
+  lastAuto = now;
+  const L = listener, n = Math.min(L.total, Math.round(L.sr * 3)), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) out[i] = L.ring[(L.total - n + i) % L.ringLen];
+  saveClip(wavBlob(out, L.sr), "auto", "sound", "Horn");
+}
+function clipDesc(c) {
+  return c.kind === "voice" ? `${c.notes} chop${c.notes === 1 ? "" : "s"}` : c.kind === "hum" ? `${c.notes} note${c.notes === 1 ? "" : "s"} hummed` : `${c.notes} note${c.notes === 1 ? "" : "s"}`;
+}
+async function saveClip(blob, name, kind = "sound", tag = "") {
+  let dur = 0, count = 0;
+  try {
+    const a = await analyseBlob(blob, kind);
+    dur = a.buf.duration; count = kind === "voice" ? a.chops.length : kind === "hum" ? a.melody.length : a.notes.length;
+  } catch (_) { toast("Couldn't read that recording"); return; }
+  const now = Date.now();
+  await putClip({ id: now + Math.random(), day: today(), at: now, name: name || "", blob, dur, notes: count, kind, tag, muted: false });
+  toast(kind === "voice" ? (count ? `Got it: ${count} chops` : "Got it, but I couldn't find words in it")
+    : kind === "hum" ? (count ? `Got it: ${count} notes hummed` : "Got it, but no steady notes. Hum closer and steadier.")
+    : count ? `Got it: ${count} note${count === 1 ? "" : "s"} in that clip` : "Got it. No clear notes, so it'll be background texture.");
   renderClips();
 }
 let clipRec = null, clipTimer = null, meterRaf = 0;
@@ -797,7 +944,7 @@ async function toggleClip() {
   mr.onstop = () => {
     clipRec = null; clearTimeout(clipTimer); cancelAnimationFrame(meterRaf);
     btn.classList.remove("on"); btn.textContent = "Grab"; $("meter").style.width = "0";
-    saveClip(new Blob(chunks, { type: mr.mimeType }));
+    saveClip(new Blob(chunks, { type: mr.mimeType }), "", grabMode, grabTag);
   };
   mr.start(); clipRec = mr;
   btn.classList.add("on");
@@ -825,7 +972,8 @@ async function renderClips() {
   for (const c of clips) {
     const el = document.createElement("div"); el.className = "clip";
     const time = new Date(c.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    el.innerHTML = `<div class="meta"><b>${time}</b> <span>· ${c.dur.toFixed(0)} s · ${c.notes} note${c.notes === 1 ? "" : "s"}${c.name ? " · " + esc(c.name).slice(0, 24) : ""}</span></div>`;
+    const kind = c.kind === "voice" ? " · voice" : c.kind === "hum" ? " · hum" : "";
+    el.innerHTML = `<div class="meta"><b>${c.tag ? esc(c.tag) : time}</b> <span>${c.tag ? " · " + time : ""}${kind} · ${c.dur.toFixed(0)} s · ${clipDesc(c)}${c.name ? " · " + esc(c.name).slice(0, 24) : ""}</span></div>`;
     const play = document.createElement("button"); play.className = "mini"; play.textContent = "▶";
     play.onclick = () => playBlob(c.blob);
     const del = document.createElement("button"); del.className = "mini"; del.textContent = "Delete";
@@ -867,7 +1015,7 @@ async function loadStudio() {
     const pad = document.createElement("button"); pad.className = "pad" + (c.muted ? " off" : "");
     pad.style.background = `hsl(${(i * 47) % 360} 85% 62%)`;
     const time = new Date(c.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    pad.innerHTML = `${time}<small>${c.notes} note${c.notes === 1 ? "" : "s"}</small>`;
+    pad.innerHTML = `${esc(c.tag || time)}<small>${clipDesc(c)}</small>`;
     const mute = document.createElement("span"); mute.className = "mute"; mute.textContent = c.muted ? "+" : "✕";
     mute.onclick = async ev => { ev.stopPropagation(); c.muted = !c.muted; await putClip(c); loadStudio(); };
     pad.append(mute);
@@ -876,24 +1024,96 @@ async function loadStudio() {
   });
 }
 async function decodeClip(c) {
-  if (!studio.decoded.has(c.id)) studio.decoded.set(c.id, await analyseBlob(c.blob));
+  if (!studio.decoded.has(c.id)) studio.decoded.set(c.id, await analyseBlob(c.blob, c.kind));
   return studio.decoded.get(c.id);
 }
 function noteBuffer(n) {
   const b = ctx.createBuffer(1, n.data.length, ctx.sampleRate); b.copyToChannel(n.data, 0); return b;
 }
 const padNext = new Map();
+function f32Buffer(d) { const b = ctx.createBuffer(1, d.length, ctx.sampleRate); b.copyToChannel(d, 0); return b; }
+function nextBarTime() { const stepDur = 60 / tempo / 4; return nextStepTime + ((16 - curStep % 16) % 16) * stepDur; }
 async function padHit(c) {
   await ensureAudio();
   const d = await decodeClip(c);
   if (!running) { drumsOn = true; listening = false; startBeat(); $("jam").textContent = "Stop the beat"; }
-  if (d.notes.length) {
+  if (c.kind === "voice" && d.chops.length) {
+    // A quick stutter of four chops on the next sixteenths.
+    const i0 = padNext.get(c.id) ?? 0; padNext.set(c.id, i0 + 1);
+    for (let i = 0; i < 4; i++) oneShots.push({ buf: f32Buffer(d.chops[(i0 + i) % d.chops.length]), at: curStep + 1 + i });
+  } else if (c.kind === "hum" && d.melody.length) {
+    playLead(d.melody, nextBarTime());
+  } else if (d.notes.length) {
     const i = ((padNext.get(c.id) ?? -1) + 1) % d.notes.length; padNext.set(c.id, i);
     const n = d.notes[i];
     if (!keySet) setKeyFrom(n.f);
     addSlot(noteBuffer(n), n.f, n.level, 2);
   } else {
     playTexture(d.buf, 0, 3, 0.6);
+  }
+}
+const VOX_WORDS = ["HEY!", "YO", "AIYO", "BOSS", "CHAL", "OI!"];
+function playChop(buf, t, rate = 1) {
+  const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+  const g = ctx.createGain(); g.gain.value = 0.8;
+  src.connect(g); g.connect(buses.sounds);
+  const send = ctx.createGain(); send.gain.value = 0.3; g.connect(send); send.connect(wet);
+  src.start(t);
+  if (Math.random() < 0.35) {
+    const b = makeBubble(700, 0.3); b.text = VOX_WORDS[Math.floor(Math.random() * VOX_WORDS.length)];
+    setTimeout(() => { b.life = 0; }, 1200);
+  }
+}
+function pickVox(chops) {
+  const pat = VOX_PATTERNS[Math.floor(Math.random() * VOX_PATTERNS.length)];
+  const pick = chops.slice().sort(() => Math.random() - 0.5).slice(0, 6).map(f32Buffer);
+  return { pat, chops: pick, i: 0 };
+}
+// Lead instruments for the hummed tune.
+function pluck(f, t, dur, vol = 0.5) {
+  // Karplus-Strong: a burst of noise circling a delay line the length of one cycle, dulled each pass.
+  const burst = noise(); const bg = ctx.createGain(); bg.gain.setValueAtTime(1, t); bg.gain.setValueAtTime(0, t + 2 / f + 0.004);
+  const d = ctx.createDelay(1); d.delayTime.value = 1 / f;
+  const fb = ctx.createGain(); fb.gain.value = Math.pow(0.001, 1 / ((dur + 0.5) * f));
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = Math.min(6500, f * 7);
+  const out = ctx.createGain(); out.gain.value = vol;
+  burst.connect(bg); bg.connect(d); d.connect(lp); lp.connect(fb); fb.connect(d); d.connect(out); out.connect(buses.lead);
+  burst.start(t); burst.stop(t + 0.06);
+  out.gain.setValueAtTime(vol, t + dur); out.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.5);
+  setTimeout(() => { for (const n of [d, fb, lp, out, bg]) try { n.disconnect(); } catch (_) {} }, Math.max(0, t - ctx.currentTime + dur + 1.5) * 1000);
+}
+function flute(f, t, dur, vol = 0.35) {
+  const o = ctx.createOscillator(); o.frequency.value = f;
+  const o2 = ctx.createOscillator(); o2.frequency.value = f * 2; const g2v = ctx.createGain(); g2v.gain.value = 0.22;
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 5.5; const lg = ctx.createGain(); lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * 0.007, t + 0.3); lfo.connect(lg); lg.connect(o.frequency);
+  const breath = noise(); const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f * 2; bp.Q.value = 8; const bgn = ctx.createGain(); bgn.gain.value = 0.05;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.07); g.gain.setValueAtTime(vol, t + dur); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.12);
+  o.connect(g); o2.connect(g2v); g2v.connect(g); breath.connect(bp); bp.connect(bgn); bgn.connect(g); g.connect(buses.lead);
+  for (const n of [o, o2, lfo, breath]) { n.start(t); n.stop(t + dur + 0.2); }
+}
+function synthLead(f, t, dur, vol = 0.3) {
+  const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 6; lp.frequency.setValueAtTime(f * 8, t); lp.frequency.exponentialRampToValueAtTime(f * 1.5, t + dur);
+  const g = ctx.createGain(); env(g, t, 0.01, vol, dur);
+  o.connect(lp); lp.connect(g); g.connect(buses.lead); g.connect(wet);
+  o.start(t); o.stop(t + dur + 0.1);
+}
+function leadNote(m, t, dur) {
+  const f = freqOf(m);
+  if (style === STYLES.techno) synthLead(f, t, dur); else if (style === STYLES.lofi) flute(f, t, dur); else pluck(f, t, dur);
+}
+function melodyLen(mel) { const l = mel[mel.length - 1]; return l.t + l.dur; }
+function playLead(mel, t0) {
+  // Move the hum into the song's key (its home note becomes the key note), snap each note to the scale.
+  const stepDur = 60 / tempo / 4, count = {};
+  for (const n of mel) count[n.midi % 12] = (count[n.midi % 12] || 0) + n.dur;
+  const tonic = +Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+  let shift = ((keyMidi - tonic) % 12 + 12) % 12; if (shift > 6) shift -= 12;
+  const raw = mel.map(n => n.midi).sort((a, b) => a - b), median = raw[raw.length >> 1];
+  while (median + shift < keyMidi + 3) shift += 12;   // the lead sits above the key note
+  for (const n of mel) {
+    const m = snapToScale(freqOf(n.midi + shift));
+    leadNote(m, t0 + Math.round(n.t / stepDur) * stepDur, Math.max(stepDur * 0.9, Math.min(n.dur, stepDur * 8)));
   }
 }
 function playTexture(buf, from, len, vol, when = ctx.currentTime + 0.02) {
@@ -907,57 +1127,87 @@ function playTexture(buf, from, len, vol, when = ctx.currentTime + 0.02) {
   src.start(when, from, len);
 }
 
-// The song: about a minute, in four parts. Intro (the day's sounds over a drone), the beat comes in,
-// full swing with claps (a qawwali speeds up here), then the drums drop out and the last sound rings off.
+// The song: about a minute per day, in four parts. Intro (the day's sounds over a drone), the beat
+// comes in with the voice chops, a build and drop into full swing with claps and the hummed lead (a
+// qawwali speeds up here), then the drums drop out and the last sound rings off. A week mix plays
+// several days back to back with a filter sweep between them.
 const PARTS = { intro: 4, build: 8, full: 8, outro: 4 };
-async function makeSong() {
+const VOX_PATTERNS = ["x...x...x.x.....", "x.x...x...x.x...", "..x...x.....x.x.", "x..x..x...x..x.."];
+const tagsOf = clips => [...new Set(clips.map(c => (c.tag || "").toLowerCase().replace(/[^a-z0-9]/g, "")).filter(Boolean))].slice(0, 2).join("-");
+async function prepareDay(day) {
+  const clips = (await allClips()).filter(c => c.day === day && !c.muted).sort((a, b) => a.at - b.at);
+  const decoded = [];
+  for (const c of clips) decoded.push({ c, d: await decodeClip(c) });
+  return { day, clips, decoded };
+}
+async function makeSong(days) {
   const btn = $("makeSong");
   if (song) { endSong(true); return; }
   await ensureAudio();
-  const use = studio.clips.filter(c => !c.muted);
-  if (!use.length) { toast("Grab a few sounds first, in Collect"); return; }
-  btn.disabled = true; btn.textContent = "Listening to your day…";
-  const decoded = [];
-  for (const c of use) decoded.push(await decodeClip(c));
-  // Note pool from every clip, taking turns so each moment of the day gets a say.
-  const pool = [];
-  for (let i = 0; pool.length < 64; i++) {
-    let added = false;
-    for (const d of decoded) if (d.notes[i]) { pool.push(d.notes[i]); added = true; }
-    if (!added) break;
-  }
-  if (pool.length) setKeyFrom(pool[0].f);
-  slots.splice(0).forEach(s => { s.bubble.life = 0; });
+  const list = Array.isArray(days) ? days : [$("daySel").value];
+  btn.disabled = true; btn.textContent = list.length > 1 ? "Listening to your week…" : "Listening to your day…";
+  const prepared = [];
+  for (const d of list) { const p = await prepareDay(d); if (p.decoded.length) prepared.push(p); }
+  if (!prepared.length) { btn.disabled = false; btn.textContent = "Make my song"; toast("Grab a few sounds first, in Collect"); return; }
+  slots.splice(0).forEach(x => { x.bubble.life = 0; });
   listening = false; stopBeat();
   const base = +$("tempo").value;
-  song = { bar: 0, pool, next: 0, decoded, base, claps: false, total: PARTS.intro + PARTS.build + PARTS.full + PARTS.outro };
-  tempo = base; setDelay();
-  drumsOn = false;
+  song = { queue: prepared.slice(1), base, total: PARTS.intro + PARTS.build + PARTS.full + PARTS.outro, days: prepared.length, done: 0 };
+  loadSongDay(prepared[0]);
+  tempo = base; setDelay(); drumsOn = false;
   btn.disabled = false; btn.textContent = "Stop";
   $("songBar").classList.remove("hidden");
-  if (window.MediaRecorder) startRecording(0, "my-day");
+  const label = prepared.length > 1 ? "week-mix" : "my-day" + (song.tags ? "-" + song.tags : "");
+  if (window.MediaRecorder) { if (wantVideo) startVideo(label); else startRecording(0, label); }
   startBeat();
   updateStats();
-  if (!pool.length) toast("No clear notes today, so it's a sound-collage song");
+  if (!song.pool.length && !song.melody && !song.chops.length) toast("No clear notes, so it's a sound-collage song");
+}
+function loadSongDay(p) {
+  const s = song;
+  s.bar = 0; s.next = 0; s.claps = false; s.day = p.day; s.tags = tagsOf(p.clips);
+  s.decoded = p.decoded.map(x => x.d);
+  const sounds = p.decoded.filter(x => x.c.kind !== "voice" && x.c.kind !== "hum").map(x => x.d);
+  s.pool = [];
+  for (let i = 0; s.pool.length < 64; i++) {
+    let added = false;
+    for (const d of sounds) if (d.notes[i]) { s.pool.push(d.notes[i]); added = true; }
+    if (!added) break;
+  }
+  s.chops = p.decoded.filter(x => x.c.kind === "voice").flatMap(x => x.d.chops);
+  s.melody = p.decoded.filter(x => x.c.kind === "hum").map(x => x.d.melody).find(m => m.length) || null;
+  if (s.pool.length) setKeyFrom(s.pool[0].f);
+  voxPattern = null;
 }
 function songBar(t) {
   const s = song, b = s.bar, { intro, build, full } = PARTS;
-  $("songFill").style.width = (100 * (b + 1) / s.total) + "%";
-  if (b >= s.total) { endSong(false); return; }
+  $("songFill").style.width = (100 * (s.done * s.total + b + 1) / (s.days * s.total)) + "%";
+  if (b >= s.total) {
+    if (s.queue.length) {
+      // Next day: the filter opens back up as the new intro starts.
+      s.done++; loadSongDay(s.queue.shift()); tempo = s.base; setDelay(); drumsOn = false;
+      lowpass.frequency.setTargetAtTime(20000, t, 0.6);
+      return songBar(t);
+    }
+    endSong(false); return;
+  }
   const tex = s.decoded.filter(d => d.buf.duration > 1);
   if (b === 0 && tex.length) playTexture(tex[0].buf, 0, Math.min(8, tex[0].buf.duration), 0.45, t);
   if (b === 2 && tex.length > 1) playTexture(tex[1].buf, 0, 6, 0.35, t);
   if (b === intro) drumsOn = true;
+  if (b >= intro && b < intro + build + full && (b - intro) % 4 === 0 && s.chops.length) voxPattern = pickVox(s.chops);
   if (b === intro + build - 2) startBuild();
-  if (b === intro + build) { s.claps = true; if (building) building.release = true; }
+  if (b === intro + build) { s.claps = true; if (building) building.release = true; if (s.melody) playLead(s.melody, t); }
+  if (b === intro + build + 4 && s.melody && melodyLen(s.melody) < 60 / tempo * 15) playLead(s.melody, t);
   // Qawwali: speed up through the full section, up to a fifth faster.
   if (style === STYLES.qawwali && b >= intro + build && b < intro + build + full) {
     tempo = s.base * (1 + 0.2 * (b - intro - build + 1) / full); setDelay(); updateStats();
   }
   if (b === intro + build + full) {
-    drumsOn = false; s.claps = false;
+    drumsOn = false; s.claps = false; voxPattern = null;
     const last = tex[tex.length - 1];
     if (last) playTexture(last.buf, Math.max(0, last.buf.duration - 6), 6, 0.45, t);
+    if (s.queue.length) lowpass.frequency.setTargetAtTime(350, t, 60 / tempo * 2);
   }
   // Notes: a sprinkle in the intro, one or two a bar once the beat is in, a flurry at the top, one to finish.
   const per = b < intro ? b % 2 : b < intro + build ? 1 + (b % 2) : b < intro + build + full ? 2 + (b % 2) : (b === s.total - 1 ? 1 : 0);
@@ -969,16 +1219,40 @@ function songBar(t) {
 }
 function endSong(stopped) {
   if (building) { building.riser.src.stop(); building = null; buildFilter.frequency.setValueAtTime(10, ctx.currentTime); $("build").classList.remove("on"); $("build").textContent = "Hold to build"; }
-  stopBeat(); drumsOn = true;
+  stopBeat(); drumsOn = true; voxPattern = null; oneShots.length = 0;
   const rec = recorder;
   song = null; tempo = +$("tempo").value; setDelay();
+  lowpass.frequency.setTargetAtTime(20000, ctx.currentTime, 0.1);
   $("makeSong").textContent = "Make my song";
   $("songBar").classList.add("hidden"); $("songFill").style.width = "0";
   // Let the echo ring out before the recording stops.
   if (rec) setTimeout(() => rec.state === "recording" && rec.stop(), stopped ? 300 : 2500);
+  if (!stopped) popConfetti(40);
   updateStats();
 }
-$("makeSong").onclick = makeSong;
+// Video: a portrait canvas with the bursts popping on the beat, recorded together with the sound.
+function startVideo(label) {
+  const types = ["video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp8,opus", "video/webm"];
+  const type = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+  if (!type) { toast("This browser can't record video, so you'll get audio"); return startRecording(0, label); }
+  const cv = document.createElement("canvas"); cv.width = 720; cv.height = 1280;
+  const stream = cv.captureStream(30);
+  for (const tr of recDest.stream.getAudioTracks()) stream.addTrack(tr);
+  const mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 2500000 });
+  const chunks = [];
+  mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+  mr.onstop = () => {
+    recorder = null; video = null;
+    const d = new Date(), two = n => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`;
+    offerFile(new Blob(chunks, { type: mr.mimeType }), `honk-orchestra-${label}-${stamp}.${type.includes("mp4") ? "mp4" : "webm"}`);
+    if (!type.includes("mp4")) toast("Saved as .webm. For WhatsApp Status, use the web page in Chrome, which saves .mp4");
+  };
+  mr.start(250);
+  recorder = mr;
+  video = { cv, c: cv.getContext("2d") };
+}
+$("makeSong").onclick = () => makeSong();
 $("daySel").onchange = loadStudio;
 $("tempo").oninput = e => { $("tempoVal").textContent = e.target.value; if (!song) { tempo = +e.target.value; if (ctx) setDelay(); } };
 $("jam").onclick = async () => {
@@ -1012,6 +1286,42 @@ $("studioStyles").onclick = e => {
   for (const ev of ["pointerup", "pointercancel"]) b.addEventListener(ev, releaseBuild);
   b.addEventListener("contextmenu", e => e.preventDefault());
   $("scratch").onclick = async () => { await ensureAudio(); scratch(); };
+  const rp = $("repeat");
+  rp.addEventListener("pointerdown", async e => {
+    e.preventDefault(); rp.setPointerCapture(e.pointerId); await ensureAudio();
+    if (!running) { listening = false; drumsOn = true; startBeat(); $("jam").textContent = "Stop the beat"; }
+    beatRepeat(true); rp.classList.add("on");
+  });
+  for (const ev of ["pointerup", "pointercancel"]) rp.addEventListener(ev, () => { if (ctx) beatRepeat(false); rp.classList.remove("on"); });
+  rp.addEventListener("contextmenu", e => e.preventDefault());
+  $("outVideo").onclick = () => { wantVideo = !wantVideo; $("outVideo").setAttribute("aria-pressed", String(wantVideo)); };
+  $("weekMix").onclick = async () => {
+    if (song) { endSong(true); return; }
+    const clips = await allClips();
+    const days = [...new Set(clips.filter(c => !c.muted).map(c => c.day))].sort().slice(-7);
+    if (days.length < 2) { toast("A week mix needs clips from at least two days"); return; }
+    makeSong(days);
+  };
+  $("grabModes").onclick = e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    grabMode = b.dataset.mode;
+    document.querySelectorAll("#grabModes .chip").forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+    $("grabHint").textContent = HINTS[grabMode];
+    $("tagRow").classList.toggle("hidden", grabMode !== "sound");
+  };
+  $("tagRow").onclick = e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    grabTag = grabTag === b.dataset.tag ? "" : b.dataset.tag;
+    document.querySelectorAll("#tagRow .chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.tag === grabTag)));
+  };
+  $("autoGrab").onclick = async () => {
+    autoGrab = !autoGrab;
+    if (autoGrab) {
+      try { await ensureAudio(); await wireMic(); toast("Listening for horns. Keep this tab open."); }
+      catch (_) { autoGrab = false; toast("Allow the microphone first"); }
+    }
+    $("autoGrab").setAttribute("aria-pressed", String(autoGrab));
+  };
   const mixer = $("mixer");
   for (const k in MIX) {
     const m = MIX[k], box = document.createElement("div"); box.className = "fader";
@@ -1023,6 +1333,41 @@ $("studioStyles").onclick = e => {
     box.append(input, label, mute); mixer.append(box);
   }
 })();
+
+// ---------- Play with it ----------
+// Tap a burst on the Live screen and its sound plays again.
+$("road").addEventListener("pointerdown", e => {
+  if (view !== "live" || !ctx) return;
+  const px = e.clientX * dpr, py = e.clientY * dpr;
+  let best = null, bd = 70 * dpr;
+  for (const b of bubbles) { const dd = Math.hypot(b.x * W - px, b.y * H - py); if (dd < bd) { bd = dd; best = b; } }
+  if (!best) return;
+  best.pulse = 1;
+  const slot = slots.find(x => x.bubble === best);
+  if (slot) { const keep = slot.plays; slot.plays = Math.floor(Math.random() * 4); playSample(slot, ctx.currentTime + 0.01); slot.plays = keep; }
+});
+// Shake the phone: if a build is running it drops, otherwise a crash and a boom.
+let lastShake = 0;
+addEventListener("devicemotion", e => {
+  const a = e.accelerationIncludingGravity; if (!a) return;
+  const m = Math.hypot(a.x || 0, a.y || 0, a.z || 0), now = performance.now();
+  if (m < 27 || now - lastShake < 1500 || !ctx || !running) return;
+  lastShake = now;
+  if (building) { building.release = true; toast("Shake! Dropping…"); }
+  else { const t = ctx.currentTime + 0.02; hit(t, { hp: 3500, len: 1.6, vol: 0.4 }); hit(t, { freq: 70, to: 32, len: 1.2, vol: 1 }); popConfetti(); toast("Shake!"); }
+});
+// Tilt FX: lean the phone left or right to sweep the filter, tip it flat for echo.
+let tilt = false;
+$("tiltFx").onclick = () => {
+  tilt = !tilt; $("tiltFx").setAttribute("aria-pressed", String(tilt));
+  if (!tilt && ctx) { xyApply(0.5, 0); $("xyDot").style.left = "50%"; $("xyDot").style.top = "100%"; }
+};
+addEventListener("deviceorientation", e => {
+  if (!tilt || !ctx || e.gamma == null) return;
+  const x = Math.min(1, Math.max(0, 0.5 + e.gamma / 60)), y = Math.min(1, Math.max(0, (50 - (e.beta ?? 50)) / 40));
+  $("xyDot").style.left = x * 100 + "%"; $("xyDot").style.top = (1 - y) * 100 + "%";
+  xyApply(x, y);
+});
 
 // ---------- Views ----------
 function show(v) {
@@ -1080,32 +1425,68 @@ function draw(now) {
     b.y += (b.ty - b.y) * Math.min(1, dt * 3);
     b.pulse *= Math.pow(0.03, dt);
     if (b.life <= 0) { b.fade = (b.fade ?? 1) - dt * 1.5; if (b.fade <= 0) { bubbles.splice(i, 1); continue; } }
-    if (view !== "live") continue;
-    const a = b.fade ?? 1;
-    const wob = Math.sin(now / 500 + b.x * 10) * 4 * dpr;
-    const x = b.x * W + wob, y = b.y * H, r = (b.r * (1 + 0.35 * b.pulse)) * dpr;
-    g2.save();
-    g2.translate(x, y); g2.rotate(Math.sin(b.x * 20) * 0.12);
-    g2.fillStyle = "rgba(0,0,0," + 0.5 * a + ")"; burst(r, 5 * dpr, 5 * dpr);
-    g2.fillStyle = hueColor(b.hue, a); burst(r, 0, 0);
-    g2.fillStyle = `rgba(20,20,24,${a})`;
-    g2.font = `${Math.round(r * 0.42)}px Bungee, sans-serif`;
-    g2.textAlign = "center"; g2.textBaseline = "middle";
-    g2.fillText(b.text, 0, 2 * dpr);
-    g2.restore();
+    if (view === "live") paintBubble(g2, b, W, H, dpr, now);
   }
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const f = confetti[i];
+    f.vy += 2.6 * dt; f.x += f.vx * dt * 0.35; f.y += f.vy * dt * 0.35; f.rot += dt * 6; f.life -= dt;
+    if (f.life <= 0) confetti.splice(i, 1);
+  }
+  if (view === "live") paintConfetti(g2, W, H, dpr);
+  if (video) drawVideo(now);
   requestAnimationFrame(draw);
 }
-function burst(r, ox, oy) {
+function popConfetti(n = 28) {
+  for (let i = 0; i < n; i++) confetti.push({ x: 0.5 + (Math.random() - 0.5) * 0.3, y: 0.45, vx: (Math.random() - 0.5) * 1.8, vy: -1.3 - Math.random() * 1.3, hue: Math.random(), life: 1.8, rot: Math.random() * 6 });
+}
+function paintConfetti(c, W, H, d) {
+  for (const f of confetti) {
+    c.save(); c.translate(f.x * W, f.y * H); c.rotate(f.rot);
+    c.fillStyle = hueColor(f.hue, Math.min(1, f.life)); c.fillRect(-5 * d, -3 * d, 10 * d, 6 * d);
+    c.restore();
+  }
+}
+function paintBubble(c, b, W, H, d, now) {
+  const a = b.fade ?? 1, wob = Math.sin(now / 500 + b.x * 10) * 4 * d;
+  const x = b.x * W + wob, y = b.y * H, r = (b.r * (1 + 0.35 * b.pulse)) * d;
+  c.save();
+  c.translate(x, y); c.rotate(Math.sin(b.x * 20) * 0.12);
+  c.fillStyle = "rgba(0,0,0," + 0.5 * a + ")"; burst(c, r, 5 * d, 5 * d);
+  c.fillStyle = hueColor(b.hue, a); burst(c, r, 0, 0);
+  c.fillStyle = `rgba(20,20,24,${a})`;
+  c.font = `${Math.round(r * 0.42)}px Bungee, sans-serif`;
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.fillText(b.text, 0, 2 * d);
+  c.restore();
+}
+function drawVideo(now) {
+  const c = video.c, W = 720, H = 1280, d = 1.75;
+  c.fillStyle = "#16161a"; c.fillRect(0, 0, W, H);
+  c.fillStyle = `rgba(255,201,40,${0.3 + 0.5 * beatPulse})`;
+  for (const lx of [0.33, 0.67]) for (let y = -90 * d + dash / dpr * d; y < H; y += 90 * d) c.fillRect(W * lx - 3 * d, y, 6 * d, 46 * d);
+  for (const b of bubbles) paintBubble(c, b, W, H, d, now);
+  paintConfetti(c, W, H, d);
+  c.textAlign = "left"; c.textBaseline = "alphabetic";
+  c.shadowColor = "#000"; c.shadowOffsetX = 4; c.shadowOffsetY = 4;
+  c.fillStyle = "#ffc928"; c.font = "48px Bungee, sans-serif"; c.fillText("HONK ORCHESTRA", 32, 90);
+  c.shadowColor = "transparent";
+  c.fillStyle = "#a59f93"; c.font = "600 26px 'DM Sans', sans-serif";
+  const s = song, day = s ? (s.day === today() ? "Today" : s.day) : "";
+  c.fillText(`${day}${s && s.tags ? " · " + s.tags.replace(/-/g, " · ") : ""}`, 32, 130);
+  c.fillText(`${style.name} · ${Math.round(tempo)} bpm · key of ${keyName()}`, 32, 164);
+  c.font = "600 22px 'DM Sans', sans-serif"; c.fillText("made from the sounds of my day", 32, H - 80);
+  if (s) { c.fillStyle = "#222228"; c.fillRect(32, H - 60, W - 64, 10); c.fillStyle = "#ffc928"; c.fillRect(32, H - 60, (W - 64) * Math.min(1, (s.done * s.total + s.bar) / (s.days * s.total)), 10); }
+}
+function burst(c, r, ox, oy) {
   // Comic-book "sound effect" burst
-  g2.beginPath();
+  c.beginPath();
   const n = 14;
   for (let i = 0; i <= n * 2; i++) {
     const ang = (i / (n * 2)) * Math.PI * 2, rr = i % 2 ? r * 0.78 : r * 1.05;
     const px = ox + Math.cos(ang) * rr * 1.35, py = oy + Math.sin(ang) * rr;
-    i ? g2.lineTo(px, py) : g2.moveTo(px, py);
+    i ? c.lineTo(px, py) : c.moveTo(px, py);
   }
-  g2.closePath(); g2.fill();
+  c.closePath(); c.fill();
 }
 requestAnimationFrame(draw);
 

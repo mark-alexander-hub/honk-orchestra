@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var web: WebView
     private var pendingMic: PermissionRequest? = null
     private var lastFile: File? = null
+    private var lastMime = "audio/*"
     private var pendingFiles: android.webkit.ValueCallback<Array<Uri>>? = null
 
     // "Remix a file": the page's file picker needs the app to open the system one.
@@ -121,6 +122,7 @@ class MainActivity : AppCompatActivity() {
             val dir = File(cacheDir, "share").apply { mkdirs() }
             dir.listFiles()?.forEach { it.delete() }
             lastFile = File(dir, name).apply { writeBytes(bytes) }
+            lastMime = mime.substringBefore(';').ifBlank { "audio/*" }
             return runCatching {
                 if (Build.VERSION.SDK_INT >= 29) {
                     val values = ContentValues().apply {
@@ -145,7 +147,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 val uri: Uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.files", f)
                 val send = Intent(Intent.ACTION_SEND).apply {
-                    type = "audio/*"
+                    type = lastMime
                     putExtra(Intent.EXTRA_STREAM, uri)
                     putExtra(Intent.EXTRA_TEXT, "The street, remixed with Honk Orchestra.")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
