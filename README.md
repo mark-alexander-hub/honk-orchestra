@@ -15,6 +15,7 @@ sound gets tuned and dropped into a beat, and one honk becomes a little riff. A 
     <img src="docs/playing.png" width="200" alt="Live: honks caught and turned into music, shown as comic-book bursts">
   <img src="docs/collect.png" width="200" alt="Collect: grab clips through the day">
   <img src="docs/studio.png" width="200" alt="Studio: make a song from today's clips">
+  <img src="docs/deck.png" width="200" alt="DJ deck: FX pad, build and drop, scratch, mixer">
 </p>
 
 ## Day Mix: collect your day, get a song tonight
@@ -28,6 +29,17 @@ sound gets tuned and dropped into a beat, and one honk becomes a little riff. A 
 - **Qawwali** style: harmonium drone, dholak in keherwa, a crowd of hand-claps, and the tempo climbs
   through the last part the way a qawwali does.
 - Each clip is also a **pad** you can tap to play its sound on the beat, and ✕ leaves a clip out.
+
+### The DJ deck
+
+Under the pads in the Studio:
+
+- **FX pad:** drag left to close a low-pass filter (the "underwater" sweep), right to open a high-pass,
+  up for echo and reverb. Let go and it snaps back clean.
+- **Hold to build:** the kick and bass drop out, a snare roll speeds up and a riser climbs. Let go and it
+  **drops** on the next downbeat with a crash and a sub boom. Make my song does this by itself before the claps come in.
+- **Scratch:** a vinyl scratch on the last sound that played.
+- **Mixer:** faders and mutes for Drums, Bass, Drone and Sounds.
 
 Clips stay in the browser's storage on your phone (in the app, inside the app). Nothing is uploaded.
 

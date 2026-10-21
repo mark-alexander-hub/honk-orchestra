@@ -69,6 +69,19 @@
   .section { font: 400 15px Bungee, sans-serif; color: var(--paint); margin: 6px 0 0; }
   .songbar { height: 10px; flex: none; border-radius: 5px; background: var(--tar); overflow: hidden; }
   .songbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--paint), var(--hot)); transition: width .4s; }
+  .xy { position: relative; width: 100%; max-width: 460px; aspect-ratio: 1.5; flex: none; align-self: center; border-radius: 18px; border: 2px solid var(--paint); touch-action: none; overflow: hidden; cursor: crosshair;
+    background: linear-gradient(90deg, rgba(80,200,255,.18), transparent 40%, transparent 60%, rgba(255,90,60,.2)), repeating-linear-gradient(0deg, transparent 0 23px, rgba(255,255,255,.04) 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, rgba(255,255,255,.04) 23px 24px), var(--tar); }
+  .xy .lab { position: absolute; font: 700 12px "DM Sans", sans-serif; color: var(--dim); pointer-events: none; }
+  .xy .dot { position: absolute; left: 50%; top: 100%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: var(--paint); box-shadow: 0 0 0 6px rgba(255,201,40,.25), 0 0 30px var(--paint); transition: left .3s, top .3s; pointer-events: none; }
+  .xy.on .dot { transition: none; }
+  .mixer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: none; }
+  .fader { display: flex; flex-direction: column; align-items: center; gap: 8px; background: var(--tar); border-radius: 14px; padding: 12px 4px 10px; }
+  .fader input { writing-mode: vertical-lr; direction: rtl; height: 130px; width: 28px; accent-color: var(--paint); }
+  .fader label { font: 700 13px "DM Sans", sans-serif; }
+  .fader button { border: 0; border-radius: 8px; padding: 5px 10px; font-weight: 700; background: var(--tar2); color: var(--ink); cursor: pointer; }
+  .fader button.muted { background: var(--hot); color: #fff; }
+  .btn.hold { touch-action: none; user-select: none; -webkit-user-select: none; }
+  .btn.hold.on { background: #fff; color: var(--hot); animation: throb .3s infinite; }
   .intro { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(10,10,12,.82); z-index: 5; }
   .card { max-width: 420px; background: var(--tar); border: 3px solid var(--paint); border-radius: 18px; padding: 22px 20px; box-shadow: 8px 8px 0 #000; transform: rotate(-.6deg); }
   .card h1 { font-family: Bungee, sans-serif; color: var(--paint); font-size: 30px; margin: 0 0 10px; line-height: 1.05; font-weight: 400; }
@@ -140,6 +153,18 @@
   <p class="hint" id="studioHint"></p>
   <div class="row"><button class="btn" id="jam">Just jam (beat on)</button></div>
   <div class="pads" id="pads"></div>
+  <div class="section">DJ deck</div>
+  <div class="xy" id="xy">
+    <span class="lab" style="left:10px;bottom:8px">◀ Low-pass</span>
+    <span class="lab" style="right:10px;bottom:8px">High-pass ▶</span>
+    <span class="lab" style="left:50%;top:8px;transform:translateX(-50%)">▲ Echo + reverb</span>
+    <i class="dot" id="xyDot"></i>
+  </div>
+  <div class="row">
+    <button class="btn rec hold" id="build">Hold to build</button>
+    <button class="btn" id="scratch">Scratch</button>
+  </div>
+  <div class="mixer" id="mixer"></div>
 </div>
 
 <div class="saved hidden" id="saved">
@@ -328,6 +353,10 @@ function findNotes(buffer) {
 
 // ---------- State ----------
 let ctx, master, wet, recDest, tap, listener, setDelay = () => {};
+let fxIn, lowpass, highpass, buildFilter, xyEcho, revSend;
+const buses = {};
+const MIX = { drums: { label: "Drums", level: 1, muted: false }, bass: { label: "Bass", level: 1, muted: false }, drone: { label: "Drone", level: 1, muted: false }, sounds: { label: "Sounds", level: 1, muted: false } };
+let building = null, lastBuf = null;
 let style = STYLES.lofi, tempo = STYLES.lofi.bpm;
 let keyMidi = 57, keySet = false, honks = 0;
 let running = false;      // the beat is going
@@ -368,7 +397,18 @@ async function ensureAudio() {
   wet = ctx.createGain(); wet.gain.value = 0.28;
   const delay = ctx.createDelay(2), fb = ctx.createGain(); fb.gain.value = 0.32;
   const tone = ctx.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 2600;
-  wet.connect(delay); delay.connect(tone); tone.connect(fb); fb.connect(delay); tone.connect(master);
+  // Every part has its own fader (bus). They all pass through the DJ filters before the master.
+  fxIn = ctx.createGain();
+  lowpass = ctx.createBiquadFilter(); lowpass.type = "lowpass"; lowpass.frequency.value = 20000; lowpass.Q.value = 1.2;
+  highpass = ctx.createBiquadFilter(); highpass.type = "highpass"; highpass.frequency.value = 10; highpass.Q.value = 1.2;
+  buildFilter = ctx.createBiquadFilter(); buildFilter.type = "highpass"; buildFilter.frequency.value = 10;
+  fxIn.connect(lowpass); lowpass.connect(highpass); highpass.connect(buildFilter); buildFilter.connect(master);
+  for (const k in MIX) { buses[k] = ctx.createGain(); buses[k].connect(fxIn); applyMix(k); }
+  wet.connect(delay); delay.connect(tone); tone.connect(fb); fb.connect(delay); tone.connect(fxIn);
+  // FX pad sends: the whole mix into the echo, and into a reverb.
+  xyEcho = ctx.createGain(); xyEcho.gain.value = 0; fxIn.connect(xyEcho); xyEcho.connect(wet);
+  const verb = ctx.createConvolver(); verb.buffer = impulse(2.4);
+  revSend = ctx.createGain(); revSend.gain.value = 0; fxIn.connect(revSend); revSend.connect(verb); verb.connect(master);
   setDelay = () => { delay.delayTime.value = 0.75 * 60 / tempo; };
   setDelay();
   master.connect(comp); comp.connect(ctx.destination);
@@ -474,8 +514,9 @@ function playSample(slot, when) {
   while (rate < 0.45) rate *= 2;
   const src = ctx.createBufferSource(); src.buffer = slot.buf; src.playbackRate.value = rate;
   const g = ctx.createGain(); g.gain.value = 0.55 * Math.pow(0.82, slot.plays);
-  src.connect(g); g.connect(master); g.connect(wet);
+  src.connect(g); g.connect(buses.sounds); g.connect(wet);
   src.start(when);
+  lastBuf = slot.buf;
   outputs.push({ f: slot.f * rate, until: when + slot.buf.duration / rate + 2.2 });
   setTimeout(() => { slot.bubble.pulse = 1; }, Math.max(0, (when - ctx.currentTime) * 1000));
   slot.plays++;
@@ -489,10 +530,14 @@ function schedule() {
     const stepDur = 60 / tempo / 4;
     const s16 = curStep % 16;
     const t = nextStepTime + (s16 % 2 ? style.swing * stepDur : 0);
+    if (s16 === 0 && building && (building.release || t - building.t0 > 60 / tempo * 16)) drop(t);
     if (s16 === 0 && song) { songBar(t); if (!running) return; }
-    if (drumsOn) playDrums(s16, t);
-    if (drumsOn && curStep % 8 === 0) playBass(t, stepDur);
-    if (style.harmonium && s16 === 0 && (drumsOn || song)) playHarmonium(t, stepDur * 16);
+    if (building) buildStep(s16, t, stepDur);
+    else {
+      if (drumsOn) playDrums(s16, t);
+      if (drumsOn && curStep % 8 === 0) playBass(t, stepDur);
+    }
+    if (style.harmonium && s16 === 0 && !building && (drumsOn || song)) playHarmonium(t, stepDur * 16);
     if (s16 === 0) setTimeout(() => { beatPulse = 1; }, Math.max(0, (t - ctx.currentTime) * 1000));
     for (const slot of slots) if (slot.step === curStep % 32 && slot.plays < slot.life) playSample(slot, t);
     for (let i = slots.length - 1; i >= 0; i--) if (slots[i].plays >= slots[i].life) { slots[i].bubble.life = 0; slots.splice(i, 1); }
@@ -514,8 +559,8 @@ function noise() {
   }
   const s = ctx.createBufferSource(); s.buffer = noiseBuf; return s;
 }
-function hit(t, { freq = 0, to = 0, len = 0.2, vol = 0.5, type = "sine", band = 0, hp = 0 }) {
-  const g = ctx.createGain(); g.connect(master);
+function hit(t, { freq = 0, to = 0, len = 0.2, vol = 0.5, type = "sine", band = 0, hp = 0, bus = "drums" }) {
+  const g = ctx.createGain(); g.connect(bus ? buses[bus] : master);
   if (freq) outputs.push({ f: freq, until: t + len + 0.5 }, ...(to ? [{ f: to, until: t + len + 0.5 }] : []));
   // Noise drums make small phone speakers ring at their own pitch; ignore that range while they play.
   if (hp) outputs.push({ lo: 2600, hi: 99999, until: t + len + 0.3 });
@@ -550,14 +595,14 @@ function playBass(t, stepDur) {
   const f = freqOf(root);
   const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = f;
   const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 500;
-  const g = ctx.createGain(); o.connect(lp); lp.connect(g); g.connect(master);
+  const g = ctx.createGain(); o.connect(lp); lp.connect(g); g.connect(buses.bass);
   env(g, t, 0.01, 0.32, stepDur * 7);
   o.start(t); o.stop(t + stepDur * 8);
   outputs.push({ f, until: t + stepDur * 8 + 0.4 });
 }
 function playHarmonium(t, dur) {
   // Reedy drone: root and fifth, slightly detuned saws through a soft filter, swelling like bellows.
-  const g = ctx.createGain(); g.connect(master);
+  const g = ctx.createGain(); g.connect(buses.drone);
   const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1300; lp.connect(g);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.25);
   g.gain.setValueAtTime(0.09, t + dur - 0.2); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
@@ -566,6 +611,81 @@ function playHarmonium(t, dur) {
     o.connect(lp); o.start(t); o.stop(t + dur + 0.1);
     outputs.push({ f: freqOf(keyMidi - 12 + m), until: t + dur + 0.5 });
   }
+}
+
+// ---------- DJ tools ----------
+function impulse(sec) {
+  const len = Math.round(ctx.sampleRate * sec), b = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  return b;
+}
+function applyMix(k) {
+  if (!buses[k]) return;
+  const m = MIX[k];
+  buses[k].gain.setTargetAtTime(m.muted ? 0 : m.level, ctx.currentTime, 0.02);
+}
+function startBuild() {
+  if (building) return;
+  if (!running) { listening = view === "live"; drumsOn = true; startBeat(); }
+  const now = ctx.currentTime, bars = 60 / tempo * 4;
+  building = { t0: now, release: false };
+  // The mix thins out from the bottom while a noise riser climbs.
+  buildFilter.frequency.cancelScheduledValues(now);
+  buildFilter.frequency.setValueAtTime(Math.max(10, buildFilter.frequency.value), now);
+  buildFilter.frequency.exponentialRampToValueAtTime(900, now + bars * 2);
+  const src = noise(); src.loop = true;
+  const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 3;
+  bp.frequency.setValueAtTime(300, now); bp.frequency.exponentialRampToValueAtTime(7000, now + bars * 3);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.28, now + bars * 2.5);
+  src.connect(bp); bp.connect(g); g.connect(master);
+  src.start(now);
+  building.riser = { src, g };
+  $("build").classList.add("on"); $("build").textContent = "Let go to drop";
+}
+function buildStep(s, t, stepDur) {
+  // Snare roll: quarters, then eighths, then sixteenths, getting louder.
+  const el = t - building.t0, bar = stepDur * 16;
+  const every = el < bar ? 4 : el < bar * 2 ? 2 : 1;
+  if (s % every === 0) hit(t, { band: 1900, len: 0.07, vol: Math.min(0.5, 0.15 + el / bar * 0.12) });
+  if (style.harmonium && s === 0) playHarmonium(t, bar);
+}
+function drop(t) {
+  const b = building; building = null;
+  buildFilter.frequency.cancelScheduledValues(t); buildFilter.frequency.setValueAtTime(10, t);
+  b.riser.g.gain.cancelScheduledValues(t); b.riser.g.gain.setValueAtTime(0.0001, t); b.riser.src.stop(t + 0.05);
+  // The drop: a crash, a sub boom, and the sounds come flying back in.
+  hit(t, { hp: 3500, len: 1.8, vol: 0.4 });
+  hit(t, { freq: 70, to: 32, len: 1.3, vol: 1 });
+  hit(t, { freq: 130, to: 42, len: 0.32, vol: 0.9 });
+  const pool = song ? song.pool : [];
+  for (let i = 0; i < 2 && pool.length; i++) { const n = pool[song.next++ % pool.length]; addSlot(noteBuffer(n), n.f, n.level, 3); }
+  setTimeout(() => { $("build").classList.remove("on"); $("build").textContent = "Hold to build"; beatPulse = 1; }, Math.max(0, (t - ctx.currentTime) * 1000));
+}
+function releaseBuild() { if (building) building.release = true; }
+function scratch() {
+  const buf = lastBuf;
+  if (!buf) { toast("Play a pad first, then scratch it"); return; }
+  // Back-and-forth strokes: the record speeds up and slows down, with the fader chopping it.
+  let t = ctx.currentTime + 0.02;
+  const strokes = [[0.5, 2.4, 0.11], [2.2, 0.4, 0.09], [0.6, 2.6, 0.07], [2.4, 0.5, 0.07], [0.5, 2.8, 0.13]];
+  strokes.forEach(([a, b, d], i) => {
+    const s = ctx.createBufferSource(); s.buffer = buf;
+    s.playbackRate.setValueAtTime(a, t); s.playbackRate.linearRampToValueAtTime(b, t + d);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7, t + 0.01); g.gain.setValueAtTime(0.7, t + d - 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    s.connect(g); g.connect(buses.sounds);
+    s.start(t, Math.min(buf.duration * 0.6, 0.02 + i * 0.03), d + 0.02);
+    t += d + 0.025;
+  });
+}
+function xyApply(x, y) {
+  // x: left half closes a low-pass, right half opens a high-pass, the middle is clean. y: echo and reverb.
+  const now = ctx.currentTime;
+  const lp = x < 0.45 ? 20000 * Math.pow(160 / 20000, (0.45 - x) / 0.45) : 20000;
+  const hp = x > 0.55 ? 10 * Math.pow(320, (x - 0.55) / 0.45) : 10;
+  lowpass.frequency.setTargetAtTime(lp, now, 0.03);
+  highpass.frequency.setTargetAtTime(hp, now, 0.03);
+  xyEcho.gain.setTargetAtTime(y * 0.42, now, 0.05);
+  revSend.gain.setTargetAtTime(y * 0.8, now, 0.05);
 }
 
 // A synthetic two-tone car horn, fed straight into the listener (and quietly to the speaker).
@@ -781,7 +901,7 @@ function playTexture(buf, from, len, vol, when = ctx.currentTime + 0.02) {
   len = Math.min(len, buf.duration - from);
   if (len <= 0.3) return;
   const src = ctx.createBufferSource(); src.buffer = buf;
-  const g = ctx.createGain(); src.connect(g); g.connect(master);
+  const g = ctx.createGain(); src.connect(g); g.connect(buses.sounds);
   g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(vol, when + 0.4);
   g.gain.setValueAtTime(vol, when + Math.max(0.5, len - 0.6)); g.gain.exponentialRampToValueAtTime(0.0001, when + len);
   src.start(when, from, len);
@@ -828,7 +948,8 @@ function songBar(t) {
   if (b === 0 && tex.length) playTexture(tex[0].buf, 0, Math.min(8, tex[0].buf.duration), 0.45, t);
   if (b === 2 && tex.length > 1) playTexture(tex[1].buf, 0, 6, 0.35, t);
   if (b === intro) drumsOn = true;
-  if (b === intro + build) s.claps = true;
+  if (b === intro + build - 2) startBuild();
+  if (b === intro + build) { s.claps = true; if (building) building.release = true; }
   // Qawwali: speed up through the full section, up to a fifth faster.
   if (style === STYLES.qawwali && b >= intro + build && b < intro + build + full) {
     tempo = s.base * (1 + 0.2 * (b - intro - build + 1) / full); setDelay(); updateStats();
@@ -847,6 +968,7 @@ function songBar(t) {
   s.bar++;
 }
 function endSong(stopped) {
+  if (building) { building.riser.src.stop(); building = null; buildFilter.frequency.setValueAtTime(10, ctx.currentTime); $("build").classList.remove("on"); $("build").textContent = "Hold to build"; }
   stopBeat(); drumsOn = true;
   const rec = recorder;
   song = null; tempo = +$("tempo").value; setDelay();
@@ -870,6 +992,37 @@ $("studioStyles").onclick = e => {
   pickStyle(b.dataset.style, "#studioStyles");
   if (!song) { tempo = style.bpm; $("tempo").value = tempo; $("tempoVal").textContent = tempo; if (ctx) setDelay(); }
 };
+
+// The deck: FX pad, build/drop, scratch, mixer.
+(() => {
+  const xy = $("xy"), dot = $("xyDot");
+  const at = e => { const r = xy.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height))]; };
+  const move = e => { const [x, y] = at(e); dot.style.left = x * 100 + "%"; dot.style.top = (1 - y) * 100 + "%"; xyApply(x, y); };
+  xy.addEventListener("pointerdown", async e => {
+    xy.setPointerCapture(e.pointerId); xy.classList.add("on");
+    await ensureAudio();
+    if (!running) { listening = false; drumsOn = true; startBeat(); $("jam").textContent = "Stop the beat"; }
+    move(e);
+  });
+  xy.addEventListener("pointermove", e => { if (xy.classList.contains("on") && ctx) move(e); });
+  const up = () => { if (!xy.classList.contains("on")) return; xy.classList.remove("on"); dot.style.left = "50%"; dot.style.top = "100%"; if (ctx) xyApply(0.5, 0); };
+  xy.addEventListener("pointerup", up); xy.addEventListener("pointercancel", up);
+  const b = $("build");
+  b.addEventListener("pointerdown", async e => { e.preventDefault(); b.setPointerCapture(e.pointerId); await ensureAudio(); startBuild(); });
+  for (const ev of ["pointerup", "pointercancel"]) b.addEventListener(ev, releaseBuild);
+  b.addEventListener("contextmenu", e => e.preventDefault());
+  $("scratch").onclick = async () => { await ensureAudio(); scratch(); };
+  const mixer = $("mixer");
+  for (const k in MIX) {
+    const m = MIX[k], box = document.createElement("div"); box.className = "fader";
+    const input = document.createElement("input"); input.type = "range"; input.min = 0; input.max = 130; input.value = 100;
+    input.oninput = () => { m.level = input.value / 100; applyMix(k); };
+    const label = document.createElement("label"); label.textContent = m.label;
+    const mute = document.createElement("button"); mute.textContent = "M"; mute.title = "Mute";
+    mute.onclick = () => { m.muted = !m.muted; mute.classList.toggle("muted", m.muted); applyMix(k); };
+    box.append(input, label, mute); mixer.append(box);
+  }
+})();
 
 // ---------- Views ----------
 function show(v) {
