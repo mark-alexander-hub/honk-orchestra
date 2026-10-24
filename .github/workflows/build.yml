@@ -22,4 +22,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: honk-orchestra-debug
+          retention-days: 3
           path: android/app/build/outputs/apk/debug/app-debug.apk
